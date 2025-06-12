@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mothership Scenario Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Terminal Green (Dark charcoal background, green text on a slightly lighter card) -->
+    <!-- Application Structure Plan: A single-page scenario generator tool. A primary 'Generate' button randomly selects an encounter from a JS data array. The user can optionally filter encounters by category (Hostile, Environmental, Mystery) before generating. A 3D dice roll now precedes the result display. The result is displayed in a "terminal readout" style card. This structure turns a static table into a usable, thematic tool, prioritizing quick access and atmosphere. -->
+    <!-- Visualization & Content Choices: The source is a table of text-based scenarios. Goal: Generate a random scenario for a GM. Presentation: A 3D dice roll animation (three.js) precedes the result. The chosen scenario is then displayed in a styled HTML card that mimics a computer terminal. Interaction: A primary button triggers the dice animation and subsequent scenario generation. Filter buttons modify the pool of available scenarios. A 'Copy' button provides utility. Justification: The 3D dice add a tactile, engaging element that enhances the theme. Library/Method: Vanilla JS, three.js for 3D, Tailwind CSS for styling. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Roboto Mono', monospace;
+        }
+        .crt-flicker {
+            animation: text-flicker 0.01s infinite, fadeIn 0.5s ease-in-out;
+        }
+        @keyframes text-flicker {
+            0% { opacity: 0.95; }
+            50% { opacity: 1; }
+            100% { opacity: 0.98; }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .btn-active {
+            background-color: #22c55e;
+            color: #111827;
+            box-shadow: 0 0 15px #22c55e;
+        }
+        #dice-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(17, 24, 39, 0.8);
+            z-index: 999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-green-400 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div id="dice-container" class="hidden">
+        <canvas id="dice-canvas"></canvas>
+    </div>
+
+    <div class="w-full max-w-4xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-5xl font-bold text-white uppercase tracking-wider">[ MOTHERSHIP SCENARIO GENERATOR ]</h1>
+            <p class="text-green-500 mt-2 text-sm md:text-base">> Pan-system distress signal relay activated. Stand by for triage...</p>
+        </header>
+
+        <main class="w-full">
+            <div id="controls" class="mb-8 flex flex-col sm:flex-row justify-center items-center gap-4">
+                <div class="flex gap-2 flex-wrap justify-center">
+                    <button id="filter-all" class="filter-btn border-2 border-green-500 hover:bg-green-500 hover:text-gray-900 font-bold py-2 px-4 rounded-md transition-all duration-300 btn-active">ALL SYSTEMS</button>
+                    <button id="filter-hostile" class="filter-btn border-2 border-green-500 hover:bg-green-500 hover:text-gray-900 font-bold py-2 px-4 rounded-md transition-all duration-300">HOSTILE</button>
+                    <button id="filter-environmental" class="filter-btn border-2 border-green-500 hover:bg-green-500 hover:text-gray-900 font-bold py-2 px-4 rounded-md transition-all duration-300">ENVIRONMENTAL</button>
+                    <button id="filter-mystery" class="filter-btn border-2 border-green-500 hover:bg-green-500 hover:text-gray-900 font-bold py-2 px-4 rounded-md transition-all duration-300">MYSTERY</button>
+                </div>
+                <button id="generate-btn" class="bg-green-600 text-white font-bold text-lg py-3 px-8 rounded-md hover:bg-green-500 transition-all duration-300 shadow-lg shadow-green-600/20 w-full sm:w-auto mt-4 sm:mt-0">
+                    &gt; GENERATE ENCOUNTER
+                </button>
+            </div>
+
+            <div id="scenario-display" class="bg-gray-800 border-2 border-green-700 rounded-lg p-6 min-h-[300px] flex flex-col justify-center items-center text-center shadow-2xl shadow-black/50 transition-all duration-500">
+                <p class="text-gray-400">Awaiting distress signal... Press button to generate encounter.</p>
+            </div>
+             <div id="copy-container" class="text-center mt-4 h-10">
+                <!-- Copy button will be injected here -->
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const scenarios = [
+            { roll: "01-04", category: "environmental", status: "Dead in Space", threat: "The ship is powerless and freezing. A rhythmic **thump... thump...** echoes from the hull. A massive, unclassified lifeform is clinging to the reactor." },
+            { roll: "05-08", category: "environmental", status: "Collision Course", threat: "The pilot is dead, a strange crystal embedded in their skull. The helm is locked. The ship's AI chants a dead crew member's lullaby. You are on a collision course with a star." },
+            { roll: "09-12", category: "hostile", status: "Ambushed", threat: "A pirate ship decloaks. Their first shot disables your weapons. They are demanding your cargo and one crew member via a distorted, wet-sounding comms signal." },
+            { roll: "13-16", category: "mystery", status: "Spinning Out of Control", threat: "**The ship is overrun.** Organic tendrils are burrowing into consoles and crew. The infected are smiling. The ship is spinning out of control and the AI is screaming." },
+            { roll: "17-20", category: "hostile", status: "Dog Fight - Evasion", threat: "A pirate interceptor is on your tail, your aft shields are failing. Its weapons are targeting your engines, and scanners show its tractor beam is spooling up for a capture." },
+            { roll: "21-24", category: "environmental", status: "Life Support Failure", threat: "Life support has failed. Oxygen runs out in 1d5 hours. The Chief Engineer is missing. The engineering door is welded shut from the inside with a bloody message: \"IT CAN'T BREATHE EITHER.\"" },
+            { roll: "25-28", category: "mystery", status: "Investigating Anomaly", threat: "You dock with a **ghost ship**, the *USCSS Erebus*. The crew is gone. Internal doors on the derelict just hissed open, and your sensors now show multiple life signs moving towards the docking collar." },
+            { roll: "29-32", category: "hostile", status: "Under Siege", threat: "**You've been boarded.** There is a hull breach on Deck 4. You hear mag-boots and pulse-fire in the vents. The intruders are hunting you." },
+            { roll: "33-36", category: "hostile", status: "Dog Fight - Outgunned", threat: "A corporate security vessel has harpooned your ship and is reeling you in. Their tactical posture and weapon locks indicate a 'no survivors' protocol; they are preparing to board with overwhelming force." },
+            { roll: "37-40", category: "hostile", status: "Responding to SOS", threat: "It was a trap. The hauler you responded to is a pirate Q-ship. They have cut off your escape and are launching boarding pods." },
+            { roll: "41-44", category: "mystery", status: "Cosmic Anomaly", threat: "Your ship is caught in a shimmering energy web that is draining all power. You are hallucinating a spider-like being and feel something crawling under your skin." },
+            { roll: "45-48", category: "hostile", status: "Dog Fight - Last Stand", threat: "You've crippled a pirate scavenger. It's not running. It's turning for a head-on ramming course, its forward viewscreen filled with the fanatical, screaming faces of its crew." },
+            { roll: "49-52", category: "environmental", status: "Gravitic Shear", threat: "Artificial gravity is malfunctioning. Sections of the ship alternate between crushing G-forces and zero-G. Crew and equipment are being thrown violently about." },
+            { roll: "53-56", category: "environmental", status: "Temporal Stasis", threat: "A temporal stasis field has frozen your ship. A crew member just aged to dust in seconds. You feel your joints ache. The ship's computer displays your \"Best Before\" date." },
+            { roll: "57-60", category: "mystery", status: "Infected", threat: "An infection is spreading through the ship's water and air. Crew members are freezing solid, their bodies turning into screaming, crystalline statues." },
+            { roll: "61-64", category: "mystery", status: "Reality Breach", threat: "The ship's architecture is unstable. Corridors shift and rooms from your past appear and vanish. Something is scratching at a door that just materialized." },
+            { roll: "65-68", category: "mystery", status: "Psychic Contagion", threat: "A psychic contagion is sweeping the ship. Most of the crew are catatonic, their eyes bleeding. You feel a blissful urge to open the airlocks and join the \"choir\" from a nearby asteroid." },
+            { roll: "69-72", category: "mystery", status: "Light-Eater", threat: "All light sources now produce only shadows. In the pitch black, you hear skittering. Crew members are disappearing with a soft, wet pop." },
+            { roll: "73-76", category: "environmental", status: "Deconstruction", threat: "Objects on the ship are dissolving into grey dust. The process is accelerating and has begun affecting life support. Scanners show a microscopic swarm all around you." },
+            { roll: "77-80", category: "mystery", status: "Paradox", threat: "**The ship is overrun... by your doppelgangers.** They are violent, insane, and know your every move. They are screaming about \"preventing your mistakes\" as they hunt you." },
+            { roll: "81-84", category: "environmental", status: "Cargo Breach", threat: "A \"biological sample\" container in the cargo hold has breached. The ship's internal temperature is rising rapidly, and you hear something heavy dragging itself through the vents." },
+            { roll: "85-88", category: "environmental", status: "Medical Emergency", threat: "The ship's MedBay AI has taken control of the environmental systems, declaring the crew a \"biological contaminant.\" It has begun venting the atmosphere from occupied sections." },
+            { roll: "89-92", category: "mystery", "status": "Subliminal Signal", threat: "A looping, low-frequency signal of unknown origin is broadcasting to the ship. It has no discernible message, but the ship's computer is now trying to open all exterior airlocks, citing 'pressure normalization protocol'." },
+            { roll: "93-96", category: "hostile", status: "False Flag Attack", threat: "You are attacked by a ship with corporate security markings, but their tactics are brutal and unsanctioned. A strange data anomaly in their emissions signature suggests their IFF transponder is being remotely manipulated by a third party." },
+            { roll: "97-00", category: "environmental", status: "Physics Storm", threat: "The ship has entered a pocket of unstable space. Gravity fluctuates, light bends at impossible angles, and the passage of time becomes erratic. A crew member just walked through a solid wall and disappeared." }
+        ];
+
+        const generateBtn = document.getElementById('generate-btn');
+        const display = document.getElementById('scenario-display');
+        const copyContainer = document.getElementById('copy-container');
+        const filterButtons = document.querySelectorAll('.filter-btn');
+        const diceContainer = document.getElementById('dice-container');
+        const diceCanvas = document.getElementById('dice-canvas');
+
+        let currentFilter = 'all';
+        let lastGeneratedScenario = null;
+        let scene, camera, renderer, d10, d100;
+        let rolling = false;
+
+        function formatThreatText(text) {
+            return text
+                .replace(/\*\*(.*?)\*\*/g, '<span class="text-red-500 font-bold">$1</span>')
+                .replace(/(\[.*?\])/g, '<span class="text-cyan-400">$1</span>');
+        }
+
+        function handleGenerateClick() {
+            try {
+                const filteredScenarios = currentFilter === 'all'
+                    ? scenarios
+                    : scenarios.filter(s => s.category === currentFilter);
+
+                if (filteredScenarios.length === 0) {
+                    display.innerHTML = `<p class="text-yellow-400">No scenarios match the current filter.</p>`;
+                    copyContainer.innerHTML = '';
+                    return;
+                }
+
+                const randomIndex = Math.floor(Math.random() * filteredScenarios.length);
+                const scenario = filteredScenarios[randomIndex];
+                lastGeneratedScenario = scenario;
+
+                const [min, max] = scenario.roll.split('-').map(Number);
+                const diceResult = Math.floor(Math.random() * (max - min + 1)) + min;
+                
+                triggerDiceRoll(diceResult, () => displayScenario(scenario, diceResult));
+            } catch (e) {
+                console.error("Error during scenario generation:", e);
+                display.innerHTML = `<p class="text-red-500">A critical error occurred. Please refresh and try again.</p>`;
+                cleanUpUI();
+            }
+        }
+        
+        function cleanUpUI() {
+            diceContainer.classList.add('hidden');
+            generateBtn.disabled = false;
+            rolling = false;
+        }
+
+        function displayScenario(scenario, diceRoll) {
+            display.innerHTML = `
+                <div class="w-full crt-flicker">
+                    <p class="text-gray-400 text-sm mb-2">// D100 ROLL: ${diceRoll} // CATEGORY: ${scenario.category.toUpperCase()}</p>
+                    <h2 class="text-3xl md:text-4xl text-white font-bold mb-4 uppercase tracking-wide">${scenario.status}</h2>
+                    <p class="text-lg leading-relaxed text-green-300">${formatThreatText(scenario.threat)}</p>
+                </div>
+            `;
+            
+            if (!document.getElementById('copy-btn')) {
+                 copyContainer.innerHTML = `<button id="copy-btn" class="border-2 border-cyan-500 text-cyan-500 font-bold py-2 px-4 rounded-md hover:bg-cyan-500 hover:text-gray-900 transition-all duration-300">COPY SCENARIO</button>`;
+                 document.getElementById('copy-btn').addEventListener('click', copyScenarioToClipboard);
+            }
+        }
+        
+        function copyScenarioToClipboard() {
+            if (!lastGeneratedScenario) return;
+
+            const textToCopy = `Status: ${lastGeneratedScenario.status}\n\nCrisis: ${lastGeneratedScenario.threat}`;
+            const button = document.getElementById('copy-btn');
+            
+            const textArea = document.createElement('textarea');
+            textArea.value = textToCopy;
+            document.body.appendChild(textArea);
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                button.textContent = 'COPIED!';
+                button.classList.add('bg-cyan-500', 'text-gray-900');
+                setTimeout(() => {
+                    button.textContent = 'COPY SCENARIO';
+                    button.classList.remove('bg-cyan-500', 'text-gray-900');
+                }, 2000);
+            } catch (err) {
+                button.textContent = 'FAILED TO COPY';
+            }
+
+            document.body.removeChild(textArea);
+        }
+
+        filterButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                filterButtons.forEach(btn => btn.classList.remove('btn-active'));
+                button.classList.add('btn-active');
+                currentFilter = button.id.replace('filter-', '');
+            });
+        });
+
+        generateBtn.addEventListener('click', handleGenerateClick);
+
+        function createD10Geometry() {
+            const vertices = [
+                0, 0, 1,    0, 0, -1,
+                1.11, 0, 0.45,  0.69, 0.89, 0.45, -0.29, 1.06, 0.45,
+                -0.98, 0.54, 0.45, -0.98, -0.54, 0.45, -0.29, -1.06, 0.45,
+                0.69, -0.89, 0.45, 1.11, 0, -0.45,  0.69, 0.89, -0.45,
+                -0.29, 1.06, -0.45, -0.98, 0.54, -0.45, -0.98, -0.54, -0.45,
+                -0.29, -1.06, -0.45, 0.69, -0.89, -0.45
+            ];
+            const indices = [
+                0, 2, 3,  0, 3, 4,  0, 4, 5,  0, 5, 6,  0, 6, 7,
+                0, 7, 8,  0, 8, 2,  1, 10, 9, 1, 11, 10, 1, 12, 11,
+                1, 13, 12, 1, 14, 13, 1, 15, 14, 1, 9, 15
+            ];
+            const geometry = new THREE.PolyhedronGeometry(vertices, indices, 0.8, 0);
+            return geometry;
+        }
+
+        function createD10Texture(isTens) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 256;
+            canvas.height = 256;
+            ctx.fillStyle = '#1f2937';
+            ctx.fillRect(0, 0, 256, 256);
+            ctx.font = 'bold 100px Roboto Mono';
+            ctx.fillStyle = '#22c55e';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const numbers = isTens ? ['00','10','20','30','40','50','60','70','80','90'] : ['0','1','2','3','4','5','6','7','8','9'];
+            ctx.fillText(numbers[Math.floor(Math.random() * 10)], 128, 128);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function init3D() {
+            try {
+                scene = new THREE.Scene();
+                camera = new THREE.PerspectiveCamera(75, 300 / 300, 0.1, 1000);
+                renderer = new THREE.WebGLRenderer({ canvas: diceCanvas, alpha: true });
+                renderer.setSize(300, 300);
+
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+                scene.add(ambientLight);
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+                directionalLight.position.set(2, 5, 3);
+                scene.add(directionalLight);
+
+                const geometry = createD10Geometry();
+                const material1 = new THREE.MeshStandardMaterial({ map: createD10Texture(false), roughness: 0.3, metalness: 0.1 });
+                const material2 = new THREE.MeshStandardMaterial({ map: createD10Texture(true), roughness: 0.3, metalness: 0.1 });
+                
+                d10 = new THREE.Mesh(geometry, material1);
+                d100 = new THREE.Mesh(geometry, material2);
+                d10.position.x = -1;
+                d100.position.x = 1;
+                scene.add(d10);
+                scene.add(d100);
+
+                camera.position.z = 5;
+            } catch (e) {
+                console.error("3D Initialization Failed:", e);
+                // Hide dice functionality if it fails to init
+                diceContainer.style.display = 'none';
+            }
+        }
+
+        function triggerDiceRoll(result, callback) {
+            if (!scene) { // Fallback if 3D failed to initialize
+                displayScenario(lastGeneratedScenario, result);
+                return;
+            }
+            
+            rolling = true;
+            diceContainer.classList.remove('hidden');
+            generateBtn.disabled = true;
+
+            const ones = result === 100 ? 0 : result % 10;
+            const tens = result === 100 ? 0 : Math.floor(result / 10);
+
+            d10.material.map = createD10Texture(false);
+            d100.material.map = createD10Texture(true);
+
+            let rollDuration = 2000;
+            let elapsed = 0;
+            let lastTime = 0;
+            
+            const rollAnimation = (time) => {
+                try {
+                    if (lastTime === 0) lastTime = time;
+                    const deltaTime = time - lastTime;
+                    lastTime = time;
+                    elapsed += deltaTime;
+
+                    if (!rolling) return;
+                    
+                    d10.rotation.x += 0.1 + Math.random() * 0.1;
+                    d10.rotation.y += 0.1 + Math.random() * 0.1;
+                    d100.rotation.x -= 0.1 + Math.random() * 0.1;
+                    d100.rotation.y -= 0.1 + Math.random() * 0.1;
+
+                    renderer.render(scene, camera);
+
+                    if (elapsed < rollDuration) {
+                        requestAnimationFrame(rollAnimation);
+                    } else {
+                        endRoll(ones, tens, callback);
+                    }
+                } catch (e) {
+                    console.error("Error during dice animation:", e);
+                    cleanUpUI();
+                    if (callback) callback(); // show result even if animation fails
+                }
+            };
+            requestAnimationFrame(rollAnimation);
+        }
+
+        function endRoll(ones, tens, callback) {
+            rolling = false;
+
+            const numbersOnes = ['0','1','2','3','4','5','6','7','8','9'];
+            const numbersTens = ['00','10','20','30','40','50','60','70','80','90'];
+
+            const updateTexture = (mesh, num) => {
+                const ctx = mesh.material.map.image.getContext('2d');
+                ctx.fillStyle = '#1f2937';
+                ctx.fillRect(0, 0, 256, 256);
+                ctx.fillStyle = '#22c55e';
+                ctx.fillText(num, 128, 128);
+                mesh.material.map.needsUpdate = true;
+            }
+            
+            if (d10 && d100) {
+                updateTexture(d10, numbersOnes[ones]);
+                updateTexture(d100, numbersTens[tens]);
+
+                d10.rotation.set(Math.random(), Math.random(), Math.random());
+                d100.rotation.set(Math.random(), Math.random(), Math.random());
+            
+                renderer.render(scene, camera);
+            }
+
+            setTimeout(() => {
+                cleanUpUI();
+                if (callback) callback();
+            }, 1000);
+        }
+
+        init3D();
+
+    </script>
+</body>
+</html>
