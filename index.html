@@ -3,25 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mothership Scenario Generator</title>
+    <title>Ship Encounter Generator</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <!-- Chosen Palette: Terminal Green (Dark charcoal background, green text on a slightly lighter card) -->
-    <!-- Application Structure Plan: A single-page scenario generator tool. A primary 'Generate' button randomly selects an encounter from a JS data array. The user can optionally filter encounters by category (Hostile, Environmental, Mystery) before generating. A 3D dice roll now precedes the result display. The result is displayed in a "terminal readout" style card. This structure turns a static table into a usable, thematic tool, prioritizing quick access and atmosphere. -->
-    <!-- Visualization & Content Choices: The source is a table of text-based scenarios. Goal: Generate a random scenario for a GM. Presentation: A 3D dice roll animation (three.js) precedes the result. The chosen scenario is then displayed in a styled HTML card that mimics a computer terminal. Interaction: A primary button triggers the dice animation and subsequent scenario generation. Filter buttons modify the pool of available scenarios. A 'Copy' button provides utility. Justification: The 3D dice add a tactile, engaging element that enhances the theme. Library/Method: Vanilla JS, three.js for 3D, Tailwind CSS for styling. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Terminal Green (Dark charcoal background, green text on a slightly lighter card) with a new Red Rock Opera title. -->
+    <!-- Application Structure Plan: A single-page scenario generator tool. A primary 'Generate' button randomly selects an encounter from a JS data array. The result is displayed in a "terminal readout" style card. This structure turns a static table into a usable, thematic tool for the target audience (Mothership Wardens), prioritizing quick access and atmosphere. -->
+    <!-- Visualization & Content Choices: The source is a table of text-based scenarios. Goal: Generate a random scenario for a GM. Presentation: The chosen scenario is displayed in a styled HTML card that mimics a computer terminal, with a prominent display for the d100 roll result. Interaction: A primary button triggers the JavaScript logic to randomly select and display an item. A 'Copy' button provides utility. Justification: This approach is more interactive and thematically appropriate than a static table, directly serving the user's need to quickly generate a game situation. Library/Method: Vanilla JS, Tailwind CSS for styling. -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
         body {
             font-family: 'Roboto Mono', monospace;
+            text-shadow: 0 0 3px rgba(34, 197, 94, 0.4);
+        }
+        .crt-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+        }
+        .crt-overlay::before { /* Scanlines */
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                to bottom,
+                rgba(18, 18, 18, 0) 0%,
+                rgba(18, 18, 18, 0.2) 50%,
+                rgba(18, 18, 18, 0) 100%
+            );
+            background-size: 100% 3px;
+            animation: scanline-move 10s linear infinite;
+        }
+        .crt-overlay::after { /* Vignette */
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            box-shadow: inset 0 0 80px rgba(0,0,0,0.6);
+        }
+        @keyframes scanline-move {
+            from { background-position-y: 0; }
+            to { background-position-y: -200%; }
         }
         .crt-flicker {
-            animation: text-flicker 0.01s infinite, fadeIn 0.5s ease-in-out;
+            animation: text-flicker 0.015s infinite, fadeIn 0.5s ease-in-out;
         }
         @keyframes text-flicker {
-            0% { opacity: 0.95; }
+            0% { opacity: 0.98; }
             50% { opacity: 1; }
-            100% { opacity: 0.98; }
+            100% { opacity: 0.97; }
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
@@ -31,45 +71,41 @@
             background-color: #22c55e;
             color: #111827;
             box-shadow: 0 0 15px #22c55e;
+            text-shadow: none;
         }
-        #dice-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(17, 24, 39, 0.8);
-            z-index: 999;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(4px);
-            cursor: pointer;
+        .rock-opera-title {
+            font-family: 'Press Start 2P', cursive;
+            color: #ef4444; /* Red-500 */
+            line-height: 1.1;
+            text-shadow: 
+                /* 3D Effect */
+                1px 1px 0px #000,
+                2px 2px 0px #000,
+                3px 3px 0px #b91c1c, /* Darker Red */
+                4px 4px 0px #b91c1c,
+                
+                /* Jagged Glow */
+                0 0 5px #fff,
+                0 0 10px #fff,
+                0 0 20px #ef4444,
+                0 0 30px #ef4444,
+                0 0 40px #b91c1c,
+                0 0 55px #b91c1c;
         }
     </style>
 </head>
 <body class="bg-gray-900 text-green-400 min-h-screen flex flex-col items-center justify-center p-4">
-
-    <div id="dice-container" class="hidden">
-        <canvas id="dice-canvas"></canvas>
-    </div>
-
-    <div class="w-full max-w-4xl mx-auto">
-        <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-5xl font-bold text-white uppercase tracking-wider">[ MOTHERSHIP SCENARIO GENERATOR ]</h1>
-            <p class="text-green-500 mt-2 text-sm md:text-base">> Pan-system distress signal relay activated. Stand by for triage...</p>
+    <div class="crt-overlay"></div>
+    <div class="w-full max-w-4xl mx-auto z-10">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl rock-opera-title">Deep Space<br>Encounters!</h1>
+            <p class="text-red-300 mt-4 text-lg md:text-xl" style="text-shadow: 0 0 5px #b91c1c;">A Scenario Generator for the Mothership RPG</p>
         </header>
 
         <main class="w-full">
-            <div id="controls" class="mb-8 flex flex-col sm:flex-row justify-center items-center gap-4">
-                <div class="flex gap-2 flex-wrap justify-center">
-                    <button id="filter-all" class="filter-btn border-2 border-green-500 hover:bg-green-500 hover:text-gray-900 font-bold py-2 px-4 rounded-md transition-all duration-300 btn-active">ALL SYSTEMS</button>
-                    <button id="filter-hostile" class="filter-btn border-2 border-green-500 hover:bg-green-500 hover:text-gray-900 font-bold py-2 px-4 rounded-md transition-all duration-300">HOSTILE</button>
-                    <button id="filter-environmental" class="filter-btn border-2 border-green-500 hover:bg-green-500 hover:text-gray-900 font-bold py-2 px-4 rounded-md transition-all duration-300">ENVIRONMENTAL</button>
-                    <button id="filter-mystery" class="filter-btn border-2 border-green-500 hover:bg-green-500 hover:text-gray-900 font-bold py-2 px-4 rounded-md transition-all duration-300">MYSTERY</button>
-                </div>
-                <button id="generate-btn" class="bg-green-600 text-white font-bold text-lg py-3 px-8 rounded-md hover:bg-green-500 transition-all duration-300 shadow-lg shadow-green-600/20 w-full sm:w-auto mt-4 sm:mt-0">
-                    &gt; GENERATE ENCOUNTER
+            <div id="controls" class="mb-8 flex justify-center">
+                <button id="generate-btn" class="bg-green-600 text-white font-bold text-lg py-3 px-8 rounded-md hover:bg-green-500 transition-all duration-300 shadow-lg shadow-green-600/20 w-full sm:w-auto">
+                    &gt; A SHIP APPROACHES
                 </button>
             </div>
 
@@ -114,16 +150,8 @@
         const generateBtn = document.getElementById('generate-btn');
         const display = document.getElementById('scenario-display');
         const copyContainer = document.getElementById('copy-container');
-        const filterButtons = document.querySelectorAll('.filter-btn');
-        const diceContainer = document.getElementById('dice-container');
-        const diceCanvas = document.getElementById('dice-canvas');
 
-        let currentFilter = 'all';
         let lastGeneratedScenario = null;
-        let scene, camera, renderer, d10, d100;
-        let rolling = false;
-        let animationFrameId = null;
-        let emergencyCallback = null;
 
         function formatThreatText(text) {
             return text
@@ -131,63 +159,21 @@
                 .replace(/(\[.*?\])/g, '<span class="text-cyan-400">$1</span>');
         }
 
-        function handleGenerateClick() {
-            try {
-                if (rolling) return; 
+        function generateScenario() {
+            const randomIndex = Math.floor(Math.random() * scenarios.length);
+            const scenario = scenarios[randomIndex];
+            lastGeneratedScenario = scenario;
+            
+            const [min, max] = scenario.roll.split('-').map(Number);
+            const diceResult = Math.floor(Math.random() * (max - min + 1)) + min;
 
-                const filteredScenarios = currentFilter === 'all'
-                    ? scenarios
-                    : scenarios.filter(s => s.category === currentFilter);
-
-                if (filteredScenarios.length === 0) {
-                    display.innerHTML = `<p class="text-yellow-400">No scenarios match the current filter.</p>`;
-                    copyContainer.innerHTML = '';
-                    return;
-                }
-
-                const randomIndex = Math.floor(Math.random() * filteredScenarios.length);
-                const scenario = filteredScenarios[randomIndex];
-                lastGeneratedScenario = scenario;
-
-                const [min, max] = scenario.roll.split('-').map(Number);
-                const diceResult = Math.floor(Math.random() * (max - min + 1)) + min;
-                
-                emergencyCallback = () => displayScenario(scenario, diceResult);
-                triggerDiceRoll(diceResult, emergencyCallback);
-
-            } catch (e) {
-                console.error("Error during scenario generation:", e);
-                display.innerHTML = `<p class="text-red-500">A critical error occurred. Please refresh and try again.</p>`;
-                cleanUpUI();
-            }
-        }
-        
-        function cleanUpUI() {
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
-            diceContainer.classList.add('hidden');
-            generateBtn.disabled = false;
-            rolling = false;
-            diceContainer.removeEventListener('click', forceClose);
-            emergencyCallback = null;
-        }
-
-        function forceClose() {
-            if (rolling) {
-                console.warn("Dice overlay force-closed by user click.");
-                if (emergencyCallback) {
-                    emergencyCallback();
-                }
-                cleanUpUI();
-            }
-        }
-
-        function displayScenario(scenario, diceRoll) {
             display.innerHTML = `
-                <div class="w-full crt-flicker">
-                    <p class="text-gray-400 text-sm mb-2">// D100 ROLL: ${diceRoll} // CATEGORY: ${scenario.category.toUpperCase()}</p>
+                <div class="w-full crt-flicker text-center">
+                    <div class="mb-4">
+                        <p class="text-gray-400 text-sm uppercase">d100 Roll</p>
+                        <p class="text-7xl font-bold text-green-400" style="text-shadow: 0 0 10px #22c55e;">${String(diceResult).padStart(2, '0')}</p>
+                    </div>
+                    <p class="text-gray-400 text-sm mb-2">// CATEGORY: ${scenario.category.toUpperCase()}</p>
                     <h2 class="text-3xl md:text-4xl text-white font-bold mb-4 uppercase tracking-wide">${scenario.status}</h2>
                     <p class="text-lg leading-relaxed text-green-300">${formatThreatText(scenario.threat)}</p>
                 </div>
@@ -225,126 +211,8 @@
             document.body.removeChild(textArea);
         }
 
-        filterButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                filterButtons.forEach(btn => btn.classList.remove('btn-active'));
-                button.classList.add('btn-active');
-                currentFilter = button.id.replace('filter-', '');
-            });
-        });
+        generateBtn.addEventListener('click', generateScenario);
 
-        generateBtn.addEventListener('click', handleGenerateClick);
-
-        function createD10Geometry() {
-            const vertices = [
-                0, 0, 1,    0, 0, -1, 1.11, 0, 0.45,  0.69, 0.89, 0.45, -0.29, 1.06, 0.45,
-                -0.98, 0.54, 0.45, -0.98, -0.54, 0.45, -0.29, -1.06, 0.45, 0.69, -0.89, 0.45, 
-                1.11, 0, -0.45,  0.69, 0.89, -0.45, -0.29, 1.06, -0.45, -0.98, 0.54, -0.45, 
-                -0.98, -0.54, -0.45, -0.29, -1.06, -0.45, 0.69, -0.89, -0.45
-            ];
-            const indices = [
-                0, 2, 3,  0, 3, 4,  0, 4, 5,  0, 5, 6,  0, 6, 7, 0, 7, 8,  0, 8, 2,  
-                1, 10, 9, 1, 11, 10, 1, 12, 11, 1, 13, 12, 1, 14, 13, 1, 15, 14, 1, 9, 15
-            ];
-            return new THREE.PolyhedronGeometry(vertices, indices, 0.8, 0);
-        }
-
-        function createD10Texture(isTens) {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = 256; canvas.height = 256;
-            ctx.fillStyle = '#1f2937'; ctx.fillRect(0, 0, 256, 256);
-            ctx.font = 'bold 100px Roboto Mono'; ctx.fillStyle = '#22c55e';
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            const numbers = isTens ? ['00','10','20','30','40','50','60','70','80','90'] : ['0','1','2','3','4','5','6','7','8','9'];
-            ctx.fillText(numbers[Math.floor(Math.random() * 10)], 128, 128);
-            return new THREE.CanvasTexture(canvas);
-        }
-
-        function init3D() {
-            try {
-                scene = new THREE.Scene();
-                camera = new THREE.PerspectiveCamera(75, 300 / 300, 0.1, 1000);
-                renderer = new THREE.WebGLRenderer({ canvas: diceCanvas, alpha: true });
-                renderer.setSize(300, 300);
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); scene.add(ambientLight);
-                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-                directionalLight.position.set(2, 5, 3); scene.add(directionalLight);
-                const geometry = createD10Geometry();
-                const material1 = new THREE.MeshStandardMaterial({ map: createD10Texture(false), roughness: 0.3, metalness: 0.1 });
-                const material2 = new THREE.MeshStandardMaterial({ map: createD10Texture(true), roughness: 0.3, metalness: 0.1 });
-                d10 = new THREE.Mesh(geometry, material1); d100 = new THREE.Mesh(geometry, material2);
-                d10.position.x = -1; d100.position.x = 1;
-                scene.add(d10); scene.add(d100);
-                camera.position.z = 5;
-            } catch (e) {
-                console.error("3D Initialization Failed:", e);
-                diceContainer.style.display = 'none';
-            }
-        }
-
-        function triggerDiceRoll(result, callback) {
-            if (!scene) { if (callback) callback(); return; }
-            
-            rolling = true;
-            diceContainer.classList.remove('hidden');
-            generateBtn.disabled = true;
-            diceContainer.addEventListener('click', forceClose);
-
-            const ones = result === 100 ? 0 : result % 10;
-            const tens = result === 100 ? 0 : Math.floor(result / 10);
-
-            if(d10) d10.material.map = createD10Texture(false);
-            if(d100) d100.material.map = createD10Texture(true);
-
-            let rollDuration = 2000; let elapsed = 0; let lastTime = 0;
-            
-            const rollAnimation = (time) => {
-                try {
-                    if (!rolling) return;
-                    if (lastTime === 0) lastTime = time;
-                    elapsed += (time - lastTime); lastTime = time;
-                    d10.rotation.x += 0.1 + Math.random() * 0.1;
-                    d10.rotation.y += 0.1 + Math.random() * 0.1;
-                    d100.rotation.x -= 0.1 + Math.random() * 0.1;
-                    d100.rotation.y -= 0.1 + Math.random() * 0.1;
-                    renderer.render(scene, camera);
-                    if (elapsed < rollDuration) {
-                        animationFrameId = requestAnimationFrame(rollAnimation);
-                    } else {
-                        endRoll(ones, tens, callback);
-                    }
-                } catch (e) {
-                    console.error("Error during dice animation:", e);
-                    if (callback) callback();
-                    cleanUpUI();
-                }
-            };
-            animationFrameId = requestAnimationFrame(rollAnimation);
-        }
-
-        function endRoll(ones, tens, callback) {
-            animationFrameId = null;
-            const numbersOnes = ['0','1','2','3','4','5','6','7','8','9'];
-            const numbersTens = ['00','10','20','30','40','50','60','70','80','90'];
-            const updateTexture = (mesh, num) => {
-                const ctx = mesh.material.map.image.getContext('2d');
-                ctx.fillStyle = '#1f2937'; ctx.fillRect(0, 0, 256, 256);
-                ctx.fillStyle = '#22c55e'; ctx.fillText(num, 128, 128);
-                mesh.material.map.needsUpdate = true;
-            }
-            if (d10 && d100) {
-                updateTexture(d10, numbersOnes[ones]); updateTexture(d100, numbersTens[tens]);
-                d10.rotation.set(Math.random(), Math.random(), Math.random());
-                d100.rotation.set(Math.random(), Math.random(), Math.random());
-                renderer.render(scene, camera);
-            }
-            setTimeout(() => {
-                if (callback) callback();
-                cleanUpUI();
-            }, 1000);
-        }
-        init3D();
     </script>
 </body>
 </html>
