@@ -44,6 +44,7 @@
             justify-content: center;
             align-items: center;
             backdrop-filter: blur(4px);
+            cursor: pointer;
         }
     </style>
 </head>
@@ -121,6 +122,8 @@
         let lastGeneratedScenario = null;
         let scene, camera, renderer, d10, d100;
         let rolling = false;
+        let animationFrameId = null;
+        let emergencyCallback = null;
 
         function formatThreatText(text) {
             return text
@@ -130,6 +133,8 @@
 
         function handleGenerateClick() {
             try {
+                if (rolling) return; 
+
                 const filteredScenarios = currentFilter === 'all'
                     ? scenarios
                     : scenarios.filter(s => s.category === currentFilter);
@@ -147,7 +152,9 @@
                 const [min, max] = scenario.roll.split('-').map(Number);
                 const diceResult = Math.floor(Math.random() * (max - min + 1)) + min;
                 
-                triggerDiceRoll(diceResult, () => displayScenario(scenario, diceResult));
+                emergencyCallback = () => displayScenario(scenario, diceResult);
+                triggerDiceRoll(diceResult, emergencyCallback);
+
             } catch (e) {
                 console.error("Error during scenario generation:", e);
                 display.innerHTML = `<p class="text-red-500">A critical error occurred. Please refresh and try again.</p>`;
@@ -156,9 +163,25 @@
         }
         
         function cleanUpUI() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
             diceContainer.classList.add('hidden');
             generateBtn.disabled = false;
             rolling = false;
+            diceContainer.removeEventListener('click', forceClose);
+            emergencyCallback = null;
+        }
+
+        function forceClose() {
+            if (rolling) {
+                console.warn("Dice overlay force-closed by user click.");
+                if (emergencyCallback) {
+                    emergencyCallback();
+                }
+                cleanUpUI();
+            }
         }
 
         function displayScenario(scenario, diceRoll) {
@@ -214,33 +237,25 @@
 
         function createD10Geometry() {
             const vertices = [
-                0, 0, 1,    0, 0, -1,
-                1.11, 0, 0.45,  0.69, 0.89, 0.45, -0.29, 1.06, 0.45,
-                -0.98, 0.54, 0.45, -0.98, -0.54, 0.45, -0.29, -1.06, 0.45,
-                0.69, -0.89, 0.45, 1.11, 0, -0.45,  0.69, 0.89, -0.45,
-                -0.29, 1.06, -0.45, -0.98, 0.54, -0.45, -0.98, -0.54, -0.45,
-                -0.29, -1.06, -0.45, 0.69, -0.89, -0.45
+                0, 0, 1,    0, 0, -1, 1.11, 0, 0.45,  0.69, 0.89, 0.45, -0.29, 1.06, 0.45,
+                -0.98, 0.54, 0.45, -0.98, -0.54, 0.45, -0.29, -1.06, 0.45, 0.69, -0.89, 0.45, 
+                1.11, 0, -0.45,  0.69, 0.89, -0.45, -0.29, 1.06, -0.45, -0.98, 0.54, -0.45, 
+                -0.98, -0.54, -0.45, -0.29, -1.06, -0.45, 0.69, -0.89, -0.45
             ];
             const indices = [
-                0, 2, 3,  0, 3, 4,  0, 4, 5,  0, 5, 6,  0, 6, 7,
-                0, 7, 8,  0, 8, 2,  1, 10, 9, 1, 11, 10, 1, 12, 11,
-                1, 13, 12, 1, 14, 13, 1, 15, 14, 1, 9, 15
+                0, 2, 3,  0, 3, 4,  0, 4, 5,  0, 5, 6,  0, 6, 7, 0, 7, 8,  0, 8, 2,  
+                1, 10, 9, 1, 11, 10, 1, 12, 11, 1, 13, 12, 1, 14, 13, 1, 15, 14, 1, 9, 15
             ];
-            const geometry = new THREE.PolyhedronGeometry(vertices, indices, 0.8, 0);
-            return geometry;
+            return new THREE.PolyhedronGeometry(vertices, indices, 0.8, 0);
         }
 
         function createD10Texture(isTens) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            canvas.width = 256;
-            canvas.height = 256;
-            ctx.fillStyle = '#1f2937';
-            ctx.fillRect(0, 0, 256, 256);
-            ctx.font = 'bold 100px Roboto Mono';
-            ctx.fillStyle = '#22c55e';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+            canvas.width = 256; canvas.height = 256;
+            ctx.fillStyle = '#1f2937'; ctx.fillRect(0, 0, 256, 256);
+            ctx.font = 'bold 100px Roboto Mono'; ctx.fillStyle = '#22c55e';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             const numbers = isTens ? ['00','10','20','30','40','50','60','70','80','90'] : ['0','1','2','3','4','5','6','7','8','9'];
             ctx.fillText(numbers[Math.floor(Math.random() * 10)], 128, 128);
             return new THREE.CanvasTexture(canvas);
@@ -252,115 +267,84 @@
                 camera = new THREE.PerspectiveCamera(75, 300 / 300, 0.1, 1000);
                 renderer = new THREE.WebGLRenderer({ canvas: diceCanvas, alpha: true });
                 renderer.setSize(300, 300);
-
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-                scene.add(ambientLight);
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); scene.add(ambientLight);
                 const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-                directionalLight.position.set(2, 5, 3);
-                scene.add(directionalLight);
-
+                directionalLight.position.set(2, 5, 3); scene.add(directionalLight);
                 const geometry = createD10Geometry();
                 const material1 = new THREE.MeshStandardMaterial({ map: createD10Texture(false), roughness: 0.3, metalness: 0.1 });
                 const material2 = new THREE.MeshStandardMaterial({ map: createD10Texture(true), roughness: 0.3, metalness: 0.1 });
-                
-                d10 = new THREE.Mesh(geometry, material1);
-                d100 = new THREE.Mesh(geometry, material2);
-                d10.position.x = -1;
-                d100.position.x = 1;
-                scene.add(d10);
-                scene.add(d100);
-
+                d10 = new THREE.Mesh(geometry, material1); d100 = new THREE.Mesh(geometry, material2);
+                d10.position.x = -1; d100.position.x = 1;
+                scene.add(d10); scene.add(d100);
                 camera.position.z = 5;
             } catch (e) {
                 console.error("3D Initialization Failed:", e);
-                // Hide dice functionality if it fails to init
                 diceContainer.style.display = 'none';
             }
         }
 
         function triggerDiceRoll(result, callback) {
-            if (!scene) { // Fallback if 3D failed to initialize
-                displayScenario(lastGeneratedScenario, result);
-                return;
-            }
+            if (!scene) { if (callback) callback(); return; }
             
             rolling = true;
             diceContainer.classList.remove('hidden');
             generateBtn.disabled = true;
+            diceContainer.addEventListener('click', forceClose);
 
             const ones = result === 100 ? 0 : result % 10;
             const tens = result === 100 ? 0 : Math.floor(result / 10);
 
-            d10.material.map = createD10Texture(false);
-            d100.material.map = createD10Texture(true);
+            if(d10) d10.material.map = createD10Texture(false);
+            if(d100) d100.material.map = createD10Texture(true);
 
-            let rollDuration = 2000;
-            let elapsed = 0;
-            let lastTime = 0;
+            let rollDuration = 2000; let elapsed = 0; let lastTime = 0;
             
             const rollAnimation = (time) => {
                 try {
-                    if (lastTime === 0) lastTime = time;
-                    const deltaTime = time - lastTime;
-                    lastTime = time;
-                    elapsed += deltaTime;
-
                     if (!rolling) return;
-                    
+                    if (lastTime === 0) lastTime = time;
+                    elapsed += (time - lastTime); lastTime = time;
                     d10.rotation.x += 0.1 + Math.random() * 0.1;
                     d10.rotation.y += 0.1 + Math.random() * 0.1;
                     d100.rotation.x -= 0.1 + Math.random() * 0.1;
                     d100.rotation.y -= 0.1 + Math.random() * 0.1;
-
                     renderer.render(scene, camera);
-
                     if (elapsed < rollDuration) {
-                        requestAnimationFrame(rollAnimation);
+                        animationFrameId = requestAnimationFrame(rollAnimation);
                     } else {
                         endRoll(ones, tens, callback);
                     }
                 } catch (e) {
                     console.error("Error during dice animation:", e);
+                    if (callback) callback();
                     cleanUpUI();
-                    if (callback) callback(); // show result even if animation fails
                 }
             };
-            requestAnimationFrame(rollAnimation);
+            animationFrameId = requestAnimationFrame(rollAnimation);
         }
 
         function endRoll(ones, tens, callback) {
-            rolling = false;
-
+            animationFrameId = null;
             const numbersOnes = ['0','1','2','3','4','5','6','7','8','9'];
             const numbersTens = ['00','10','20','30','40','50','60','70','80','90'];
-
             const updateTexture = (mesh, num) => {
                 const ctx = mesh.material.map.image.getContext('2d');
-                ctx.fillStyle = '#1f2937';
-                ctx.fillRect(0, 0, 256, 256);
-                ctx.fillStyle = '#22c55e';
-                ctx.fillText(num, 128, 128);
+                ctx.fillStyle = '#1f2937'; ctx.fillRect(0, 0, 256, 256);
+                ctx.fillStyle = '#22c55e'; ctx.fillText(num, 128, 128);
                 mesh.material.map.needsUpdate = true;
             }
-            
             if (d10 && d100) {
-                updateTexture(d10, numbersOnes[ones]);
-                updateTexture(d100, numbersTens[tens]);
-
+                updateTexture(d10, numbersOnes[ones]); updateTexture(d100, numbersTens[tens]);
                 d10.rotation.set(Math.random(), Math.random(), Math.random());
                 d100.rotation.set(Math.random(), Math.random(), Math.random());
-            
                 renderer.render(scene, camera);
             }
-
             setTimeout(() => {
-                cleanUpUI();
                 if (callback) callback();
+                cleanUpUI();
             }, 1000);
         }
-
         init3D();
-
     </script>
 </body>
 </html>
