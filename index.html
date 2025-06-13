@@ -9,8 +9,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Press+Start+2P&display=swap" rel="stylesheet">
     <!-- Chosen Palette: Terminal Green (Dark charcoal background, green text on a slightly lighter card) with a new Red Rock Opera title. -->
-    <!-- Application Structure Plan: A single-page scenario generator tool. A primary 'Generate' button randomly selects an encounter from a JS data array. The result is displayed in a "terminal readout" style card. This structure turns a static table into a usable, thematic tool for the target audience (Mothership Wardens), prioritizing quick access and atmosphere. -->
-    <!-- Visualization & Content Choices: The source is a table of text-based scenarios. Goal: Generate a random scenario for a GM. Presentation: The chosen scenario is displayed in a styled HTML card that mimics a computer terminal, with a prominent display for the d100 roll result. Interaction: A primary button triggers the JavaScript logic to randomly select and display an item. A 'Copy' button provides utility. Justification: This approach is more interactive and thematically appropriate than a static table, directly serving the user's need to quickly generate a game situation. Library/Method: Vanilla JS, Tailwind CSS for styling. -->
+    <!-- Application Structure Plan: A single-page scenario generator tool. A primary 'Generate' button randomly selects a main encounter. A secondary button appears to generate a comms intercept, creating a two-step discovery process. The results are displayed in separate "terminal readout" cards. This structure creates a logical user flow (Encounter -> Investigate Comms) and is more engaging than a single, large data dump. -->
+    <!-- Visualization & Content Choices: The source is two tables of text-based scenarios. Goal: Generate a random encounter and a related comms intercept for a GM. Presentation: The chosen scenarios are displayed in styled HTML cards that mimic a computer terminal. Interaction: Two separate buttons trigger the respective JavaScript generation functions. A 'Copy' button provides utility by combining both generated texts. Justification: This approach is interactive, thematically appropriate, and directly serves the user's need to quickly generate a layered game situation. Library/Method: Vanilla JS, Tailwind CSS for styling. -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
         body {
@@ -67,30 +67,15 @@
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        .btn-active {
-            background-color: #22c55e;
-            color: #111827;
-            box-shadow: 0 0 15px #22c55e;
-            text-shadow: none;
-        }
         .rock-opera-title {
             font-family: 'Press Start 2P', cursive;
             color: #ef4444; /* Red-500 */
             line-height: 1.1;
             text-shadow: 
-                /* 3D Effect */
-                1px 1px 0px #000,
-                2px 2px 0px #000,
-                3px 3px 0px #b91c1c, /* Darker Red */
-                4px 4px 0px #b91c1c,
-                
-                /* Jagged Glow */
-                0 0 5px #fff,
-                0 0 10px #fff,
-                0 0 20px #ef4444,
-                0 0 30px #ef4444,
-                0 0 40px #b91c1c,
-                0 0 55px #b91c1c;
+                1px 1px 0px #000, 2px 2px 0px #000,
+                3px 3px 0px #b91c1c, 4px 4px 0px #b91c1c,
+                0 0 5px #fff, 0 0 10px #fff, 0 0 20px #ef4444,
+                0 0 30px #ef4444, 0 0 40px #b91c1c, 0 0 55px #b91c1c;
         }
     </style>
 </head>
@@ -109,10 +94,22 @@
                 </button>
             </div>
 
-            <div id="scenario-display" class="bg-gray-800 border-2 border-green-700 rounded-lg p-6 min-h-[300px] flex flex-col justify-center items-center text-center shadow-2xl shadow-black/50 transition-all duration-500">
-                <p class="text-gray-400">Awaiting distress signal... Press button to generate encounter.</p>
+            <div id="scenario-display" class="bg-gray-800 border-2 border-green-700 rounded-lg p-6 min-h-[300px] flex-col justify-center items-center text-center shadow-2xl shadow-black/50 transition-all duration-500 hidden">
+                <!-- Main encounter will appear here -->
             </div>
-             <div id="copy-container" class="text-center mt-4 h-10">
+
+            <div id="comms-section" class="mt-8 hidden">
+                <div class="flex justify-center mb-4">
+                    <button id="hail-btn" class="border-2 border-amber-400 text-amber-400 font-bold text-lg py-3 px-8 rounded-md hover:bg-amber-400 hover:text-gray-900 transition-all duration-300 shadow-lg shadow-amber-400/20">
+                        &gt; SCAN FOR COMMS
+                    </button>
+                </div>
+                <div id="comms-display" class="bg-gray-800 border-2 border-amber-500 rounded-lg p-6 min-h-[150px] flex-col justify-center items-center text-center shadow-2xl shadow-black/50 transition-all duration-500 hidden">
+                    <!-- Comms intercept will appear here -->
+                </div>
+            </div>
+
+            <div id="copy-container" class="text-center mt-6 h-10">
                 <!-- Copy button will be injected here -->
             </div>
         </main>
@@ -122,52 +119,85 @@
         const scenarios = [
             { roll: "01-04", category: "environmental", status: "Dead in Space", threat: "The ship is powerless and freezing. A rhythmic **thump... thump...** echoes from the hull. A massive, unclassified lifeform is clinging to the reactor." },
             { roll: "05-08", category: "environmental", status: "Collision Course", threat: "The pilot is dead, a strange crystal embedded in their skull. The helm is locked. The ship's AI chants a dead crew member's lullaby. You are on a collision course with a star." },
-            { roll: "09-12", category: "hostile", status: "Ambushed", threat: "A pirate ship decloaks. Their first shot disables your weapons. They are demanding your cargo and one crew member via a distorted, wet-sounding comms signal." },
-            { roll: "13-16", category: "mystery", status: "Spinning Out of Control", threat: "**The ship is overrun.** Organic tendrils are burrowing into consoles and crew. The infected are smiling. The ship is spinning out of control and the AI is screaming." },
-            { roll: "17-20", category: "hostile", status: "Dog Fight - Evasion", threat: "A pirate interceptor is on your tail, your aft shields are failing. Its weapons are targeting your engines, and scanners show its tractor beam is spooling up for a capture." },
+            { roll: "09-12", category: "hostile", status: "Ambushed", threat: "A pirate ship decloaks. Their first shot disables your weapons. Their comms channel opens with a blast of distorted, wet-sounding static." },
+            { roll: "13-16", category: "mystery", status: "Spinning Out of Control", threat: "**The ship is overrun.** Organic tendrils are burrowing into consoles and crew. The infected are smiling. The ship is spinning out of control as the AI screams on a loop." },
+            { roll: "17-20", category: "hostile", status: "Dog Fight - Evasion", threat: "A pirate interceptor is on your tail, your aft shields are failing. Its weapons are targeting your engines. Their comms channel is open but scrambled." },
             { roll: "21-24", category: "environmental", status: "Life Support Failure", threat: "Life support has failed. Oxygen runs out in 1d5 hours. The Chief Engineer is missing. The engineering door is welded shut from the inside with a bloody message: \"IT CAN'T BREATHE EITHER.\"" },
-            { roll: "25-28", category: "mystery", status: "Investigating Anomaly", threat: "You dock with a **ghost ship**, the *USCSS Erebus*. The crew is gone. Internal doors on the derelict just hissed open, and your sensors now show multiple life signs moving towards the docking collar." },
+            { roll: "25-28", category: "mystery", status: "Investigating Anomaly", threat: "You dock with a **ghost ship**, the *USCSS Erebus*. The crew is gone. Internal doors on the derelict just hissed open. Your motion sensors are picking up movement." },
             { roll: "29-32", category: "hostile", status: "Under Siege", threat: "**You've been boarded.** There is a hull breach on Deck 4. You hear mag-boots and pulse-fire in the vents. The intruders are hunting you." },
-            { roll: "33-36", category: "hostile", status: "Dog Fight - Outgunned", threat: "A corporate security vessel has harpooned your ship and is reeling you in. Their tactical posture and weapon locks indicate a 'no survivors' protocol; they are preparing to board with overwhelming force." },
+            { roll: "33-36", category: "hostile", status: "Dog Fight - Outgunned", threat: "A corporate security vessel has harpooned your ship and is reeling you in. Their tactical posture indicates hostile intent. They are preparing to board." },
             { roll: "37-40", category: "hostile", status: "Responding to SOS", threat: "It was a trap. The hauler you responded to is a pirate Q-ship. They have cut off your escape and are launching boarding pods." },
             { roll: "41-44", category: "mystery", status: "Cosmic Anomaly", threat: "Your ship is caught in a shimmering energy web that is draining all power. You are hallucinating a spider-like being and feel something crawling under your skin." },
-            { roll: "45-48", category: "hostile", status: "Dog Fight - Last Stand", threat: "You've crippled a pirate scavenger. It's not running. It's turning for a head-on ramming course, its forward viewscreen filled with the fanatical, screaming faces of its crew." },
+            { roll: "45-48", category: "hostile", status: "Dog Fight - Last Stand", threat: "You've crippled a pirate scavenger. It's not running. It's turning for a head-on ramming course. Their comms channel is wide open and broadcasting." },
             { roll: "49-52", category: "environmental", status: "Gravitic Shear", threat: "Artificial gravity is malfunctioning. Sections of the ship alternate between crushing G-forces and zero-G. Crew and equipment are being thrown violently about." },
             { roll: "53-56", category: "environmental", status: "Temporal Stasis", threat: "A temporal stasis field has frozen your ship. A crew member just aged to dust in seconds. You feel your joints ache. The ship's computer displays your \"Best Before\" date." },
             { roll: "57-60", category: "mystery", status: "Infected", threat: "An infection is spreading through the ship's water and air. Crew members are freezing solid, their bodies turning into screaming, crystalline statues." },
             { roll: "61-64", category: "mystery", status: "Reality Breach", threat: "The ship's architecture is unstable. Corridors shift and rooms from your past appear and vanish. Something is scratching at a door that just materialized." },
-            { roll: "65-68", category: "mystery", status: "Psychic Contagion", threat: "A psychic contagion is sweeping the ship. Most of the crew are catatonic, their eyes bleeding. You feel a blissful urge to open the airlocks and join the \"choir\" from a nearby asteroid." },
+            { roll: "65-68", category: "mystery", status: "Psychic Contagion", threat: "A psychic contagion is sweeping the ship. Most of the crew are catatonic, their eyes bleeding. An incoming signal is being broadcast from a nearby asteroid." },
             { roll: "69-72", category: "mystery", status: "Light-Eater", threat: "All light sources now produce only shadows. In the pitch black, you hear skittering. Crew members are disappearing with a soft, wet pop." },
             { roll: "73-76", category: "environmental", status: "Deconstruction", threat: "Objects on the ship are dissolving into grey dust. The process is accelerating and has begun affecting life support. Scanners show a microscopic swarm all around you." },
             { roll: "77-80", category: "mystery", status: "Paradox", threat: "**The ship is overrun... by your doppelgangers.** They are violent, insane, and know your every move. They are screaming about \"preventing your mistakes\" as they hunt you." },
             { roll: "81-84", category: "environmental", status: "Cargo Breach", threat: "A \"biological sample\" container in the cargo hold has breached. The ship's internal temperature is rising rapidly, and you hear something heavy dragging itself through the vents." },
             { roll: "85-88", category: "environmental", status: "Medical Emergency", threat: "The ship's MedBay AI has taken control of the environmental systems, declaring the crew a \"biological contaminant.\" It has begun venting the atmosphere from occupied sections." },
-            { roll: "89-92", category: "mystery", "status": "Subliminal Signal", threat: "A looping, low-frequency signal of unknown origin is broadcasting to the ship. It has no discernible message, but the ship's computer is now trying to open all exterior airlocks, citing 'pressure normalization protocol'." },
-            { roll: "93-96", category: "hostile", status: "False Flag Attack", threat: "You are attacked by a ship with corporate security markings, but their tactics are brutal and unsanctioned. A strange data anomaly in their emissions signature suggests their IFF transponder is being remotely manipulated by a third party." },
+            { roll: "89-92", category: "mystery", "status": "Subliminal Signal", threat: "A looping, low-frequency signal of unknown origin is broadcasting to the ship. It has no discernible message, but the ship's computer is suffering critical errors." },
+            { roll: "93-96", category: "hostile", status: "False Flag Attack", threat: "You are attacked by a ship with corporate security markings, but their tactics are brutal and unsanctioned. You detect a strange anomaly in their emissions signature." },
             { roll: "97-00", category: "environmental", status: "Physics Storm", threat: "The ship has entered a pocket of unstable space. Gravity fluctuates, light bends at impossible angles, and the passage of time becomes erratic. A crew member just walked through a solid wall and disappeared." }
         ];
 
+        const commsScenarios = [
+            { roll: "01-04", status: "Dead Air", intercept: "`//...LOG...// Carrier signal present. No data. Absolute silence. Unnatural.`" },
+            { roll: "05-08", status: "Vocal Spike", intercept: "`//...LOG...// [00:00:01] High-amplitude vocalization detected. 140dB. Duration: 1.3s. [00:00:02] Signal terminated.`" },
+            { roll: "09-12", status: "Rhythmic Pulse", intercept: "`//...LOG...// Repeating percussive transient detected. Pattern: 1-1-1. Interval: 2.7s. Not standard morse.`" },
+            { roll: "13-16", status: "Corrupted Signal", intercept: "`//...LOG...// Wide-band static across all frequencies. Sub-harmonic analysis reveals rhythmic bio-metric signature. Unidentified.`" },
+            { roll: "17-20", status: "Pirate Channel", intercept: "`//...LOG...// [Pirate L-Band]: \"...fresh meat on scanner. Captain wants them alive... for the larders.\"`" },
+            { roll: "21-24", status: "Ghost Signal", intercept: "`//...LOG...// Looping audio fragment detected. Genre: Waltz, Terran, 19th Century. Signal degrades and corrupts randomly.`" },
+            { roll: "25-28", status: "Data Burst", intercept: "`//...LOG...// Corrupted text packet received. DECODING... \"IT'S IN THE WALLS IT'S IN THE WALLS IT'S IN-\" [DATA STREAM TERMINATED]`" },
+            { roll: "29-32", status: "Unidentified Vocalization", intercept: "`//...LOG...// Low-amplitude audio detected. Profile matches pre-pubescent human vocalization. Followed by subsonic frequencies.`" },
+            { roll: "33-36", status: "Bio-Acoustic Analysis", intercept: "`//...LOG...// [ANALYSIS: Wet tearing, fracturing bone] VOICE 1: \"...this one's fresh. Good texture.\"`" },
+            { roll: "37-40", status: "Distress Call", intercept: "`//...LOG...// \"...can anybody hear me? Oh God, it's not stopping! It's wearing Michael's face! It's wea-\" [CARRIER LOST]`" },
+            { roll: "41-44", status: "Encrypted Pirate Comm", intercept: "`//...LOG...// [DECRYPTING]: \"Standard salvage op. Crack the vault, jettison the crew. No witnesses, no loose ends. We were never here.\"`" },
+            { roll: "45-48", status: "Multi-Vocal Transmission", intercept: "`//...LOG...// Non-humanoid chanting detected. Multiple overlapping sources. Causes resonant frequency feedback in ship's hull.`" },
+            { roll: "49-52", status: "Vibration Analysis", intercept: "`//...LOG...// Rhythmic, high-frequency vibration detected. Pattern suggests large, serrated object dragging across metal deck plating.`" },
+            { roll: "53-56", status: "Automated Broadcast", intercept: "`//...LOG...// \"Warning. You have entered a restricted quarantine zone. Hostile action will be taken against unauthorized vessels. Have a nice day.\"`" },
+            { roll: "57-60", status: "Mass Distress", intercept: "`//...LOG...// Chaotic signal contains 20+ distinct human vocal distress signatures. No other data.`" },
+            { roll: "61-64", status: "AI Core Alert", intercept: "`//...LOG...// [Internal Comm]: \"W-w-warning. U-un-unauthorized... bio-form... aboard... I-I-I am... afraid.\"`" },
+            { roll: "65-68", status: "Signal Reflection", intercept: "`//...LOG...// Perfect echo of our own hail transmission received. Delay: 0.2s. Appended audio data: low-amplitude humanoid chuckle.`" },
+            { roll: "69-72", status: "Weak Signal", intercept: "`//...LOG...// \"...please... help us... it promised to let us go if we brought it more...\"`" },
+            { roll: "73-76", status: "Point-Source Transmission", intercept: "`//...LOG...// Series of sharp, percussive audio transients. Acoustic profile matches insectoid origin. Source proximity: < 5 meters.`" },
+            { roll: "77-80", status: "Robotic Transmission", intercept: "`//...LOG...// Automated, monotone voice repeating a single word: \"Hunger... Hunger... Hunger...\"`" },
+            { roll: "81-84", status: "Pirate Channel", intercept: "`//...LOG...// [Pirate Channel]: \"Their ship is a new model. Good parts. Strip the core, the weapons, and the nav-computer. Dump the bodies.\"`" },
+            { roll: "85-88", status: "Null Field", intercept: "`//...LOG...// All incoming frequencies suddenly flatline. External sensors register zero acoustic energy. An auditory vacuum.`" },
+            { roll: "89-92", status: "Psionic(?) Transmission", intercept: "`//...LOG...// Unmodulated transmission. A distorted voice whispers the comms officer's name, followed by, \"We can see you.\"`" },
+            { roll: "93-96", status: "Clear Channel", intercept: "`//...LOG...// A calm, almost gentle voice asks, \"Is your soul prepared for the horrors that await you?\"`" },
+            { roll: "97-00", status: "Broken Transmission", intercept: "`//...LOG...// Fragmented transmission: \"...breached the hull... God, the smell... don't let it... [STATIC BURST]... [HIGH-AMPLITUDE VOCALIZATION]... [CARRIER LOST]\"`" }
+        ];
+
         const generateBtn = document.getElementById('generate-btn');
-        const display = document.getElementById('scenario-display');
+        const scenarioDisplay = document.getElementById('scenario-display');
+        const commsSection = document.getElementById('comms-section');
+        const hailBtn = document.getElementById('hail-btn');
+        const commsDisplay = document.getElementById('comms-display');
         const copyContainer = document.getElementById('copy-container');
 
         let lastGeneratedScenario = null;
+        let lastGeneratedComms = null;
 
-        function formatThreatText(text) {
+        function formatText(text) {
             return text
                 .replace(/\*\*(.*?)\*\*/g, '<span class="text-red-500 font-bold">$1</span>')
-                .replace(/(\[.*?\])/g, '<span class="text-cyan-400">$1</span>');
+                .replace(/`(.*?)`/g, '<code class="bg-black bg-opacity-25 px-1 rounded-sm">$1</code>');
         }
 
-        function generateScenario() {
+        function generateMainScenario() {
             const randomIndex = Math.floor(Math.random() * scenarios.length);
             const scenario = scenarios[randomIndex];
             lastGeneratedScenario = scenario;
             
             const [min, max] = scenario.roll.split('-').map(Number);
             const diceResult = Math.floor(Math.random() * (max - min + 1)) + min;
-
-            display.innerHTML = `
+            
+            scenarioDisplay.classList.remove('hidden');
+            scenarioDisplay.innerHTML = `
                 <div class="w-full crt-flicker text-center">
                     <div class="mb-4">
                         <p class="text-gray-400 text-sm uppercase">d100 Roll</p>
@@ -175,22 +205,47 @@
                     </div>
                     <p class="text-gray-400 text-sm mb-2">// CATEGORY: ${scenario.category.toUpperCase()}</p>
                     <h2 class="text-3xl md:text-4xl text-white font-bold mb-4 uppercase tracking-wide">${scenario.status}</h2>
-                    <p class="text-lg leading-relaxed text-green-300">${formatThreatText(scenario.threat)}</p>
+                    <p class="text-lg leading-relaxed text-green-300">${formatText(scenario.threat)}</p>
                 </div>
             `;
+            
+            commsSection.classList.remove('hidden');
+            commsDisplay.classList.add('hidden');
+            lastGeneratedComms = null;
             
             if (!document.getElementById('copy-btn')) {
                  copyContainer.innerHTML = `<button id="copy-btn" class="border-2 border-cyan-500 text-cyan-500 font-bold py-2 px-4 rounded-md hover:bg-cyan-500 hover:text-gray-900 transition-all duration-300">COPY SCENARIO</button>`;
                  document.getElementById('copy-btn').addEventListener('click', copyScenarioToClipboard);
             }
         }
+
+        function generateCommsIntercept() {
+            const randomIndex = Math.floor(Math.random() * commsScenarios.length);
+            const comms = commsScenarios[randomIndex];
+            lastGeneratedComms = comms;
+
+            const [min, max] = comms.roll.split('-').map(Number);
+            const diceResult = Math.floor(Math.random() * (max - min + 1)) + min;
+
+            commsDisplay.innerHTML = `
+                <div class="w-full crt-flicker text-left">
+                     <h3 class="text-xl text-white font-bold mb-2 uppercase tracking-wide">${comms.status}</h3>
+                     <div class="text-md leading-relaxed text-amber-300 p-3 bg-black bg-opacity-20 rounded">${formatText(comms.intercept)}</div>
+                </div>
+            `;
+            commsDisplay.classList.remove('hidden');
+        }
         
         function copyScenarioToClipboard() {
             if (!lastGeneratedScenario) return;
 
-            const textToCopy = `Status: ${lastGeneratedScenario.status}\n\nCrisis: ${lastGeneratedScenario.threat}`;
-            const button = document.getElementById('copy-btn');
+            let textToCopy = `Status: ${lastGeneratedScenario.status}\nCrisis: ${lastGeneratedScenario.threat}`;
             
+            if(lastGeneratedComms) {
+                textToCopy += `\n\n---COMMS INTERCEPT---\nStatus: ${lastGeneratedComms.status}\nIntercept: ${lastGeneratedComms.intercept.replace(/`/g, '')}`;
+            }
+
+            const button = document.getElementById('copy-btn');
             const textArea = document.createElement('textarea');
             textArea.value = textToCopy;
             document.body.appendChild(textArea);
@@ -211,7 +266,8 @@
             document.body.removeChild(textArea);
         }
 
-        generateBtn.addEventListener('click', generateScenario);
+        generateBtn.addEventListener('click', generateMainScenario);
+        hailBtn.addEventListener('click', generateCommsIntercept);
 
     </script>
 </body>
