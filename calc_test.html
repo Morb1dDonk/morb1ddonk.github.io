@@ -45,9 +45,9 @@
         // --- Get components from global variables (since we aren't using 'import') ---
         const { useState, useEffect } = React;
         
-        // Use a safe fallback if lucideReact fails to load, though the version fix should resolve it.
+        // Use a safe fallback if lucideReact fails to load
         const LucideIcons = window.lucideReact || {};
-        const { Play, RotateCcw, CheckCircle, XCircle, Trophy, Timer, TrendingUp, Calculator, Brain } = LucideIcons;
+        const { Play, RotateCcw, CheckCircle, XCircle, Trophy, Timer, TrendingUp, Calculator, Brain, User } = LucideIcons;
 
         // --- Utility Component for Fractions ---
         const Fraction = ({ num, den }) => (
@@ -76,8 +76,8 @@
             </div>
         );
 
-        // --- Question Data ---
-        const QUESTIONS = [
+        // --- Question Data Pool (20 Questions) ---
+        const QUESTION_POOL = [
             {
                 id: 1,
                 category: "PFD Setup",
@@ -96,7 +96,7 @@
                 { id: 'D', label: <div className="flex items-center"><Fraction num="Ax + B" den="(x-1)(x+4)" /></div> },
                 ],
                 correctId: 'A',
-                explanation: "Since the denominator consists of distinct linear factors, we use constants A and B over each factor."
+                explanation: "Correct, Breezy! Distinct linear factors get constants A and B."
             },
             {
                 id: 2,
@@ -118,7 +118,7 @@
                 correctId: 'B',
                 explanation: (
                 <div className="flex items-center flex-wrap justify-center">
-                    Because <Limit term={<Fraction num="n" den="3n + 1" />} /> = 1/3 ≠ 0, the series diverges.
+                    Nice work, Breezy. The limit is 1/3 ≠ 0, so it diverges.
                 </div>
                 )
             },
@@ -140,7 +140,7 @@
                 { id: 'D', label: <div className="flex items-center"><Fraction num="Ax" den="x" /> + <Fraction num="Bx" den="x^2 + 9" /></div> },
                 ],
                 correctId: 'C',
-                explanation: "For an irreducible quadratic factor (x² + 9), the numerator must be linear (Bx + C)."
+                explanation: "Spot on, Breezy. Irreducible quadratics need a linear numerator (Bx + C)."
             },
             {
                 id: 4,
@@ -162,7 +162,7 @@
                 correctId: 'C',
                 explanation: (
                 <div className="flex items-center flex-wrap justify-center">
-                    <Limit term={<Fraction num="1" den="n" />} /> = 0. When the limit is 0, the Divergence Test tells us NOTHING. (Even though we know the harmonic series diverges, this specific test is inconclusive).
+                    Be careful, Breezy! The limit is 0, which means the Divergence Test tells us NOTHING.
                 </div>
                 )
             },
@@ -187,19 +187,317 @@
                 correctId: 'A',
                 explanation: (
                 <div className="flex items-center flex-wrap justify-center">
-                    Let x = 2. Cover (x-2). term = <Fraction num="5(2) - 4" den="(2 + 1)" /> = <Fraction num="6" den="3" /> = 2.
+                    Let x = 2. Cover (x-2). term = 6/3 = 2. Great calculation, Breezy!
                 </div>
                 )
+            },
+            // --- NEW QUESTIONS 6-20 ---
+            {
+                id: 6,
+                category: "PFD Setup",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">Identify the correct form for repeated linear factors:</p>
+                    <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
+                    <Fraction num="x + 1" den="(x - 3)^2" />
+                    </div>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: <div className="flex items-center"><Fraction num="A" den="x-3" /> + <Fraction num="B" den="x-3" /></div> },
+                { id: 'B', label: <div className="flex items-center"><Fraction num="A" den="x-3" /> + <Fraction num="B" den="(x-3)^2" /></div> },
+                { id: 'C', label: <div className="flex items-center"><Fraction num="Ax + B" den="(x-3)^2" /></div> },
+                { id: 'D', label: <div className="flex items-center"><Fraction num="A" den="(x-3)^2" /></div> },
+                ],
+                correctId: 'B',
+                explanation: "Correct, Breezy! Repeated linear factors need a term for each power, (x-3) and (x-3)²."
+            },
+            {
+                id: 7,
+                category: "Test for Divergence",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">Evaluate the limit of the n-th term:</p>
+                    <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
+                    <Limit term={<Fraction num="n^2" den="2n^2 + 5" />} />
+                    </div>
+                    <p className="mt-2 text-sm">Does the series diverge?</p>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: "Limit = 1/2, Diverges" },
+                { id: 'B', label: "Limit = 0, Inconclusive" },
+                { id: 'C', label: "Limit = ∞, Diverges" },
+                { id: 'D', label: "Limit = 1/2, Converges" },
+                ],
+                correctId: 'A',
+                explanation: "Exactly! The limit is 1/2, which is not 0. Therefore, it diverges."
+            },
+            {
+                id: 8,
+                category: "PFD Concept",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">Before starting PFD, what must you check about the fraction?</p>
+                    <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
+                    <Fraction num="P(x)" den="Q(x)" />
+                    </div>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: "The denominator must be factorable." },
+                { id: 'B', label: "Degree of P(x) < Degree of Q(x)." },
+                { id: 'C', label: "Degree of P(x) ≥ Degree of Q(x)." },
+                { id: 'D', label: "P(x) must be constant." },
+                ],
+                correctId: 'B',
+                explanation: "Right, Breezy. If the degree of the top is ≥ the bottom, you must do long division first!"
+            },
+            {
+                id: 9,
+                category: "Test for Divergence",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">Analyze the series using the Divergence Test:</p>
+                    <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
+                    <Summation term="cos(nπ)" />
+                    </div>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: "Converges to 0" },
+                { id: 'B', label: "Diverges (Oscillates)" },
+                { id: 'C', label: "Inconclusive" },
+                { id: 'D', label: "Converges to 1" },
+                ],
+                correctId: 'B',
+                explanation: "cos(nπ) alternates between -1 and 1. The limit does not exist, so it diverges. Good eye, Breezy."
+            },
+            {
+                id: 10,
+                category: "PFD Solving",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">Find the value of <strong>B</strong>:</p>
+                    <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
+                    <Fraction num="2" den="(x-1)(x+1)" /> = <Fraction num="A" den="x-1" /> + <Fraction num="B" den="x+1" />
+                    </div>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: "B = 1" },
+                { id: 'B', label: "B = -1" },
+                { id: 'C', label: "B = -2" },
+                { id: 'D', label: "B = 2" },
+                ],
+                correctId: 'B',
+                explanation: "Cover up (x+1), plug in x = -1. You get 2/(-2) = -1. Perfect math, Breezy."
+            },
+            {
+                id: 11,
+                category: "PFD Setup",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">Setup the form for Difference of Squares denominator:</p>
+                    <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
+                    <Fraction num="1" den="x^2 - 16" />
+                    </div>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: <div className="flex items-center"><Fraction num="A" den="x-4" /> + <Fraction num="B" den="x+4" /></div> },
+                { id: 'B', label: <div className="flex items-center"><Fraction num="Ax+B" den="x^2-16" /></div> },
+                { id: 'C', label: <div className="flex items-center"><Fraction num="A" den="x-16" /> + <Fraction num="B" den="x+16" /></div> },
+                { id: 'D', label: <div className="flex items-center"><Fraction num="A" den="x" /> + <Fraction num="B" den="-16" /></div> },
+                ],
+                correctId: 'A',
+                explanation: "Factor x²-16 into (x-4)(x+4). Then it's just distinct linear factors. Good job, Breezy."
+            },
+            {
+                id: 12,
+                category: "Test for Divergence",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">Evaluate the limit as n→∞:</p>
+                    <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
+                    <Limit term={<Fraction num="n!" den="(n+1)!" />} />
+                    </div>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: "Limit = ∞ (Diverges)" },
+                { id: 'B', label: "Limit = 1 (Diverges)" },
+                { id: 'C', label: "Limit = 0 (Inconclusive)" },
+                { id: 'D', label: "Limit = e" },
+                ],
+                correctId: 'C',
+                explanation: "Expand (n+1)! to (n+1)n!. The limit becomes 1/(n+1) which is 0. Inconclusive! Careful, Breezy."
+            },
+            {
+                id: 13,
+                category: "PFD Setup",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">How many constants (A, B, C...) do you need?</p>
+                    <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
+                    <Fraction num="x^2 + 1" den="x(x-1)^2" />
+                    </div>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: "2 Constants" },
+                { id: 'B', label: "3 Constants" },
+                { id: 'C', label: "4 Constants" },
+                { id: 'D', label: "5 Constants" },
+                ],
+                correctId: 'B',
+                explanation: "You need A/x, B/(x-1), and C/(x-1)². That's 3 constants. You got this, Breezy."
+            },
+            {
+                id: 14,
+                category: "Test for Divergence",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">Does this series diverge by the n-th Term Test?</p>
+                    <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
+                    <Summation term="e^n" />
+                    </div>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: "Yes, limit is ∞" },
+                { id: 'B', label: "No, limit is 0" },
+                { id: 'C', label: "Inconclusive" },
+                { id: 'D', label: "Converges" },
+                ],
+                correctId: 'A',
+                explanation: "The terms grow infinitely large. The limit is not 0, so it definitely diverges. Nice one, Breezy."
+            },
+            {
+                id: 15,
+                category: "PFD Solving",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">Solve for A:</p>
+                    <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
+                    <Fraction num="7" den="(x-3)(x+4)" /> = <Fraction num="A" den="x-3" /> + <Fraction num="B" den="x+4" />
+                    </div>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: "A = 7" },
+                { id: 'B', label: "A = -1" },
+                { id: 'C', label: "A = 1" },
+                { id: 'D', label: "A = 1/7" },
+                ],
+                correctId: 'C',
+                explanation: "Let x = 3. Cover (x-3). You get 7/(3+4) = 7/7 = 1. Simple and clean, Breezy."
+            },
+            {
+                id: 16,
+                category: "PFD Setup",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">Identify the error in this setup:</p>
+                    <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
+                    <Fraction num="1" den="x(x^2+1)" /> = <Fraction num="A" den="x" /> + <Fraction num="B" den="x^2+1" />
+                    </div>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: "There is no error." },
+                { id: 'B', label: "The first term should be Ax." },
+                { id: 'C', label: "The second numerator should be Bx + C." },
+                { id: 'D', label: "It requires long division first." },
+                ],
+                correctId: 'C',
+                explanation: "That quadratic (x²+1) is irreducible! It needs a linear numerator (Bx + C). Good catch, Breezy."
+            },
+            {
+                id: 17,
+                category: "Test for Divergence",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">Evaluate the limit:</p>
+                    <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
+                    <Limit term={<Fraction num="ln(n)" den="n" />} />
+                    </div>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: "Limit = 0 (Inconclusive)" },
+                { id: 'B', label: "Limit = ∞ (Diverges)" },
+                { id: 'C', label: "Limit = 1 (Diverges)" },
+                { id: 'D', label: "Limit = -∞" },
+                ],
+                correctId: 'A',
+                explanation: "n grows faster than ln(n). The limit is 0, so the Divergence Test is inconclusive. Stay sharp, Breezy!"
+            },
+            {
+                id: 18,
+                category: "PFD Setup",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">Which setup is correct for the denominator:</p>
+                    <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
+                    (x - 2)(x + 2)^2
+                    </div>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: <div className="flex items-center"><Fraction num="A" den="x-2" /> + <Fraction num="B" den="x+2" /></div> },
+                { id: 'B', label: <div className="flex items-center"><Fraction num="A" den="x-2" /> + <Fraction num="B" den="x+2" /> + <Fraction num="C" den="(x+2)^2" /></div> },
+                { id: 'C', label: <div className="flex items-center"><Fraction num="A" den="x-2" /> + <Fraction num="Bx+C" den="(x+2)^2" /></div> },
+                { id: 'D', label: <div className="flex items-center"><Fraction num="A" den="x-2" /> + <Fraction num="B" den="(x+2)^2" /></div> },
+                ],
+                correctId: 'B',
+                explanation: "You need one term for (x-2), one for (x+2), and one for (x+2)². Correct, Breezy."
+            },
+            {
+                id: 19,
+                category: "Test for Divergence",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">What happens if limit = 0.0000001?</p>
+                    <div className="text-sm text-slate-400 mb-2">Assuming that is the exact limit of the nth term.</div>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: "Converges" },
+                { id: 'B', label: "Diverges" },
+                { id: 'C', label: "Inconclusive" },
+                { id: 'D', label: "Depends on the sign" },
+                ],
+                correctId: 'B',
+                explanation: "If the limit is NOT EXACTLY zero, it Diverges. 0.0000001 is not 0. Nice logic, Breezy."
+            },
+            {
+                id: 20,
+                category: "PFD Concept",
+                prompt: (
+                <div className="flex flex-col items-center">
+                    <p className="mb-4">Why do we use Partial Fraction Decomposition?</p>
+                </div>
+                ),
+                options: [
+                { id: 'A', label: "To make the fraction look cooler" },
+                { id: 'B', label: "To make it easier to integrate or sum" },
+                { id: 'C', label: "To find the derivative" },
+                { id: 'D', label: "To solve for x" },
+                ],
+                correctId: 'B',
+                explanation: "Exactly, Breezy. It breaks complex rationals into simple terms we can integrate or telescope."
             }
         ];
 
         // --- Main App Component ---
         function Calc2Game() {
             const [gameState, setGameState] = useState('start'); // start, playing, end
+            const [questions, setQuestions] = useState([]); // The 5 active questions
             const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
             const [score, setScore] = useState(0);
             const [streak, setStreak] = useState(0);
-            const [timeLeft, setTimeLeft] = useState(30);
+            const [timeLeft, setTimeLeft] = useState(40); // UPDATED to 40
             const [selectedOption, setSelectedOption] = useState(null);
             const [isAnswered, setIsAnswered] = useState(false);
             const [highScore, setHighScore] = useState(0);
@@ -218,11 +516,16 @@
             }, [gameState, isAnswered, timeLeft]);
 
             const startGame = () => {
+                // Shuffle pool and select 5
+                const shuffled = [...QUESTION_POOL].sort(() => 0.5 - Math.random());
+                const selectedQuestions = shuffled.slice(0, 5);
+                setQuestions(selectedQuestions);
+
                 setGameState('playing');
                 setCurrentQuestionIndex(0);
                 setScore(0);
                 setStreak(0);
-                setTimeLeft(30);
+                setTimeLeft(40); // Reset to 40
                 setSelectedOption(null);
                 setIsAnswered(false);
             };
@@ -233,7 +536,7 @@
                 setIsAnswered(true);
                 setSelectedOption(optionId);
                 
-                const correct = optionId === QUESTIONS[currentQuestionIndex].correctId;
+                const correct = optionId === questions[currentQuestionIndex].correctId;
                 
                 if (correct) {
                 // Base score 100 + Time Bonus + Streak Bonus
@@ -254,9 +557,9 @@
             };
 
             const nextQuestion = () => {
-                if (currentQuestionIndex < QUESTIONS.length - 1) {
+                if (currentQuestionIndex < questions.length - 1) {
                 setCurrentQuestionIndex(prev => prev + 1);
-                setTimeLeft(30);
+                setTimeLeft(40); // Reset to 40
                 setIsAnswered(false);
                 setSelectedOption(null);
                 } else {
@@ -276,12 +579,18 @@
                 <div className="bg-cyan-900/30 p-8 rounded-full ring-4 ring-cyan-500/50 shadow-[0_0_50px_rgba(8,145,178,0.4)]">
                      {Calculator ? <Calculator size={64} className="text-cyan-400" /> : <div className="text-4xl">calc</div>}
                 </div>
-                <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600">
-                    CALCULUS RUN
-                </h1>
+                <div>
+                    <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600">
+                        CALCULUS RUN
+                    </h1>
+                    <div className="flex items-center justify-center gap-2 mt-2 text-cyan-400 font-mono">
+                        {User && <User size={18} />}
+                        <span>AGENT: BREEZY</span>
+                    </div>
+                </div>
                 <p className="text-slate-400 text-lg max-w-md">
-                    Test your skills in Partial Fractions and Divergence. 
-                    Speed increases score. Streaks grant bonuses.
+                    Welcome back, Breezy. Your mission: 5 Random Questions. 40 Seconds each.
+                    Good luck.
                 </p>
                 
                 <button 
@@ -302,7 +611,10 @@
             );
 
             const GameScreen = () => {
-                const question = QUESTIONS[currentQuestionIndex];
+                // Safety check if questions haven't loaded yet
+                if (!questions || questions.length === 0) return <div>Loading mission data...</div>;
+
+                const question = questions[currentQuestionIndex];
                 const isCorrect = selectedOption === question.correctId;
                 
                 return (
@@ -329,7 +641,7 @@
                     <div className="w-full bg-slate-800 h-2 rounded-full mb-6 overflow-hidden">
                     <div 
                         className="bg-gradient-to-r from-cyan-500 to-blue-500 h-full transition-all duration-500"
-                        style={{ width: `${((currentQuestionIndex) / QUESTIONS.length) * 100}%` }}
+                        style={{ width: `${((currentQuestionIndex) / questions.length) * 100}%` }}
                     />
                     </div>
 
@@ -341,7 +653,7 @@
                         </div>
                         
                         <span className="inline-block px-3 py-1 rounded-full bg-slate-800 text-slate-400 text-xs font-bold tracking-wider mb-4 border border-slate-700">
-                        QUESTION {currentQuestionIndex + 1} / {QUESTIONS.length} • {question.category}
+                        QUESTION {currentQuestionIndex + 1} / {questions.length} • {question.category}
                         </span>
                         
                         <div className="text-xl md:text-2xl text-white font-medium mb-8 z-10 relative">
@@ -401,7 +713,7 @@
                             onClick={nextQuestion}
                             className="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition-colors shadow-lg shadow-cyan-900/20"
                         >
-                            {currentQuestionIndex === QUESTIONS.length - 1 ? "Finish Game" : "Next Question"}
+                            {currentQuestionIndex === questions.length - 1 ? "Finish Game" : "Next Question"}
                         </button>
                         </div>
                     )}
@@ -419,7 +731,7 @@
                     </div>
                 </div>
                 
-                <h2 className="text-4xl font-bold text-white">Mission Complete</h2>
+                <h2 className="text-4xl font-bold text-white">Mission Complete, Breezy!</h2>
                 
                 <div className="grid grid-cols-2 gap-4 w-full max-w-sm mt-8">
                     <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
@@ -433,9 +745,9 @@
                 </div>
 
                 <p className="text-slate-400 max-w-md mt-4">
-                    {score > 2000 ? "Amazing! You're ready for the exam." : 
-                    score > 1000 ? "Good job! Keep practicing those decompositions." :
-                    "Keep reviewing your divergence tests!"}
+                    {score > 2000 ? "Amazing work, Breezy! You're ready for the exam." : 
+                    score > 1000 ? "Good job, Breezy! Keep practicing those decompositions." :
+                    "Keep reviewing your divergence tests, Breezy!"}
                 </p>
 
                 <button 
