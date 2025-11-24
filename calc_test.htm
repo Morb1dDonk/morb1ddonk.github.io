@@ -1,0 +1,416 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Play, RotateCcw, Heart, Trophy, Zap, Clock, CheckCircle, XCircle, ChevronRight, Brain } from 'lucide-react';
+
+/**
+ * MATHJAX CONFIGURATION
+ * We use a simple useEffect to load MathJax from a CDN and typeset the math
+ * whenever the content changes.
+ */
+const MathJaxValues = ({ text, className = "" }) => {
+  const node = useRef(null);
+
+  useEffect(() => {
+    if (window.MathJax && node.current) {
+      // Clear previous content
+      node.current.innerHTML = `\\(${text}\\)`;
+      // Ask MathJax to render
+      window.MathJax.typesetPromise([node.current]).catch((err) => console.log(err));
+    } else if (node.current) {
+       // Fallback if script hasn't loaded yet, though we load it in App
+       node.current.innerHTML = text; 
+    }
+  }, [text]);
+
+  return <span ref={node} className={className} />;
+};
+
+const QUESTIONS = [
+  // --- PARTIAL FRACTION DECOMPOSITION ---
+  {
+    id: 1,
+    category: 'Partial Fractions',
+    latex: '\\int \\frac{3x + 11}{(x-3)(x+2)} \\, dx',
+    question: 'Choose the correct form for decomposition:',
+    options: [
+      { id: 'a', latex: '\\frac{A}{x-3} + \\frac{B}{x+2}', isCorrect: true },
+      { id: 'b', latex: '\\frac{A}{x-3} - \\frac{B}{x+2}', isCorrect: false },
+      { id: 'c', latex: '\\frac{Ax + B}{(x-3)(x+2)}', isCorrect: false },
+      { id: 'd', latex: '\\frac{A}{x^2} + \\frac{B}{x-6}', isCorrect: false },
+    ]
+  },
+  {
+    id: 2,
+    category: 'Partial Fractions',
+    latex: '\\int \\frac{x^2 + 1}{x(x-1)^2} \\, dx',
+    question: 'Identify the correct setup:',
+    options: [
+      { id: 'a', latex: '\\frac{A}{x} + \\frac{B}{x-1}', isCorrect: false },
+      { id: 'b', latex: '\\frac{A}{x} + \\frac{B}{x-1} + \\frac{C}{(x-1)^2}', isCorrect: true },
+      { id: 'c', latex: '\\frac{A}{x} + \\frac{Bx + C}{(x-1)^2}', isCorrect: false },
+      { id: 'd', latex: '\\frac{A}{x} + \\frac{B}{(x-1)^2}', isCorrect: false },
+    ]
+  },
+  {
+    id: 3,
+    category: 'Partial Fractions',
+    latex: '\\int \\frac{5}{(x^2+1)(x-2)} \\, dx',
+    question: 'This involves an irreducible quadratic factor. Select the form:',
+    options: [
+      { id: 'a', latex: '\\frac{A}{x^2+1} + \\frac{B}{x-2}', isCorrect: false },
+      { id: 'b', latex: '\\frac{Ax+B}{x^2+1} + \\frac{C}{x-2}', isCorrect: true },
+      { id: 'c', latex: '\\frac{Ax}{x^2+1} + \\frac{B}{x-2}', isCorrect: false },
+      { id: 'd', latex: '\\frac{A}{(x+1)^2} + \\frac{B}{x-2}', isCorrect: false },
+    ]
+  },
+  // --- DIVERGENCE TEST ---
+  {
+    id: 4,
+    category: 'Divergence Test',
+    latex: '\\sum_{n=1}^{\\infty} \\frac{n}{n+1}',
+    question: 'Apply the nth-Term Test for Divergence:',
+    options: [
+      { id: 'a', text: 'Lim = 0, Series Converges', isCorrect: false },
+      { id: 'b', text: 'Lim = 1, Series Diverges', isCorrect: true },
+      { id: 'c', text: 'Lim = 1, Test Inconclusive', isCorrect: false },
+      { id: 'd', text: 'Lim = infinity, Series Diverges', isCorrect: false },
+    ]
+  },
+  {
+    id: 5,
+    category: 'Divergence Test',
+    latex: '\\sum_{n=1}^{\\infty} \\frac{1}{n^2}',
+    question: 'Evaluate \\(\\lim_{n \\to \\infty} a_n\\) and conclude based strictly on the Divergence Test:',
+    options: [
+      { id: 'a', text: 'Lim = 0, Test Inconclusive', isCorrect: true },
+      { id: 'b', text: 'Lim = 0, Series Converges', isCorrect: false },
+      { id: 'c', text: 'Lim does not exist, Diverges', isCorrect: false },
+      { id: 'd', text: 'Lim = 1, Diverges', isCorrect: false },
+    ]
+  },
+  {
+    id: 6,
+    category: 'Divergence Test',
+    latex: '\\sum_{n=1}^{\\infty} \\cos(n\\pi)',
+    question: 'Does this series diverge?',
+    options: [
+      { id: 'a', text: 'No, Limit is 0', isCorrect: false },
+      { id: 'b', text: 'Yes, Limit DNE (oscillates)', isCorrect: true },
+      { id: 'c', text: 'Inconclusive', isCorrect: false },
+      { id: 'd', text: 'Converges to -1', isCorrect: false },
+    ]
+  },
+  // --- MIXED BAG ---
+  {
+    id: 7,
+    category: 'Partial Fractions',
+    latex: '\\int \\frac{10}{x^2 - 9} \\, dx',
+    question: 'Factor the denominator and set up:',
+    options: [
+      { id: 'a', latex: '\\frac{A}{x-3} + \\frac{B}{x+3}', isCorrect: true },
+      { id: 'b', latex: '\\frac{A}{(x-3)^2}', isCorrect: false },
+      { id: 'c', latex: '\\frac{Ax+B}{x^2-9}', isCorrect: false },
+      { id: 'd', latex: '\\frac{A}{x^2} - \\frac{B}{9}', isCorrect: false },
+    ]
+  },
+  {
+    id: 8,
+    category: 'Divergence Test',
+    latex: '\\sum_{n=1}^{\\infty} \\frac{4n^3 + 2}{n^3 - 5}',
+    question: 'Find the limit at infinity:',
+    options: [
+      { id: 'a', text: 'Lim = 0, Inconclusive', isCorrect: false },
+      { id: 'b', text: 'Lim = 4, Converges', isCorrect: false },
+      { id: 'c', text: 'Lim = 4, Diverges', isCorrect: true },
+      { id: 'd', text: 'Lim = infinity, Diverges', isCorrect: false },
+    ]
+  }
+];
+
+export default function CalcQuest() {
+  const [gameState, setGameState] = useState('menu'); // menu, playing, gameover
+  const [currentQIndex, setCurrentQIndex] = useState(0);
+  const [score, setScore] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [lives, setLives] = useState(3);
+  const [timeLeft, setTimeLeft] = useState(20);
+  const [selectedOption, setSelectedOption] = useState(null);
+  const [feedback, setFeedback] = useState(null); // 'correct', 'incorrect', 'timeout'
+  
+  // Script Loader for MathJax
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+    script.async = true;
+    script.id = "mathjax-script";
+    document.head.appendChild(script);
+
+    return () => {
+      const existing = document.getElementById("mathjax-script");
+      if (existing) existing.remove();
+    };
+  }, []);
+
+  // Timer Logic
+  useEffect(() => {
+    let interval;
+    if (gameState === 'playing' && !feedback && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+      }, 1000);
+    } else if (timeLeft === 0 && !feedback && gameState === 'playing') {
+      handleAnswer(null, false, true);
+    }
+    return () => clearInterval(interval);
+  }, [timeLeft, gameState, feedback]);
+
+  const startGame = () => {
+    setScore(0);
+    setLives(3);
+    setStreak(0);
+    setCurrentQIndex(0);
+    setTimeLeft(20);
+    setGameState('playing');
+    setFeedback(null);
+    setSelectedOption(null);
+  };
+
+  const handleAnswer = (optionId, isCorrect, isTimeout = false) => {
+    if (feedback) return; // Prevent double clicking
+
+    setSelectedOption(optionId);
+    
+    if (isTimeout) {
+      setFeedback('timeout');
+      setLives((l) => l - 1);
+      setStreak(0);
+    } else if (isCorrect) {
+      setFeedback('correct');
+      const basePoints = 100;
+      const timeBonus = timeLeft * 5;
+      const streakBonus = streak * 50;
+      setScore((s) => s + basePoints + timeBonus + streakBonus);
+      setStreak((s) => s + 1);
+    } else {
+      setFeedback('incorrect');
+      setLives((l) => l - 1);
+      setStreak(0);
+    }
+
+    // Wait before next question
+    setTimeout(() => {
+      if (isTimeout && lives <= 1) { // 1 because we just subtracted
+         endGame();
+      } else if (!isCorrect && lives <= 1 && !isTimeout) {
+         endGame();
+      } else if (currentQIndex >= QUESTIONS.length - 1) {
+         endGame();
+      } else {
+         nextQuestion();
+      }
+    }, 2000);
+  };
+
+  const nextQuestion = () => {
+    setCurrentQIndex((prev) => prev + 1);
+    setTimeLeft(20);
+    setFeedback(null);
+    setSelectedOption(null);
+  };
+
+  const endGame = () => {
+    setGameState('gameover');
+  };
+
+  // Screens
+  if (gameState === 'menu') {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white font-sans flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full text-center space-y-8">
+          <div className="space-y-2">
+            <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500 pb-2">
+              Calc Quest
+            </h1>
+            <p className="text-slate-400 text-lg">Mastering Calc II: Series & Decomposition</p>
+          </div>
+          
+          <div className="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+            <div className="flex items-center justify-center space-x-4 mb-6">
+              <div className="flex flex-col items-center">
+                 <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center mb-2">
+                    <Brain className="w-6 h-6" />
+                 </div>
+                 <span className="text-xs text-slate-300">Logic</span>
+              </div>
+              <div className="flex flex-col items-center">
+                 <div className="w-12 h-12 bg-pink-600 rounded-full flex items-center justify-center mb-2">
+                    <Zap className="w-6 h-6" />
+                 </div>
+                 <span className="text-xs text-slate-300">Speed</span>
+              </div>
+            </div>
+            
+            <ul className="text-left space-y-3 text-slate-300 mb-6 text-sm">
+              <li className="flex items-center"><CheckCircle className="w-4 h-4 mr-2 text-green-400"/> Partial Fraction Setups</li>
+              <li className="flex items-center"><CheckCircle className="w-4 h-4 mr-2 text-green-400"/> Nth-Term Divergence Tests</li>
+              <li className="flex items-center"><CheckCircle className="w-4 h-4 mr-2 text-green-400"/> Streak Bonuses active</li>
+            </ul>
+
+            <button 
+              onClick={startGame}
+              className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-4 px-6 rounded-xl transition-all transform hover:scale-105 shadow-lg flex items-center justify-center"
+            >
+              <Play className="mr-2 fill-current" /> Start Quiz
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameState === 'gameover') {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700 text-center">
+          <Trophy className={`w-20 h-20 mx-auto mb-4 ${score > 1000 ? 'text-yellow-400' : 'text-slate-500'}`} />
+          
+          <h2 className="text-3xl font-bold mb-2">Game Over!</h2>
+          <p className="text-slate-400 mb-6">Calculus calculations complete.</p>
+          
+          <div className="grid grid-cols-2 gap-4 mb-8">
+            <div className="bg-slate-900 p-4 rounded-xl">
+              <p className="text-slate-400 text-xs uppercase tracking-wider">Final Score</p>
+              <p className="text-3xl font-mono font-bold text-cyan-400">{score}</p>
+            </div>
+            <div className="bg-slate-900 p-4 rounded-xl">
+              <p className="text-slate-400 text-xs uppercase tracking-wider">Questions</p>
+              <p className="text-3xl font-mono font-bold text-purple-400">{currentQIndex}/{QUESTIONS.length}</p>
+            </div>
+          </div>
+
+          <button 
+            onClick={startGame}
+            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition flex items-center justify-center"
+          >
+            <RotateCcw className="mr-2" /> Play Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const question = QUESTIONS[currentQIndex];
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center pt-8 p-4">
+      {/* Header Stats */}
+      <div className="max-w-2xl w-full flex justify-between items-center bg-slate-800/50 p-4 rounded-2xl mb-6 backdrop-blur-sm border border-slate-700">
+        <div className="flex items-center space-x-2">
+           <Heart className={`w-6 h-6 ${lives >= 1 ? 'text-red-500 fill-current' : 'text-slate-600'}`} />
+           <Heart className={`w-6 h-6 ${lives >= 2 ? 'text-red-500 fill-current' : 'text-slate-600'}`} />
+           <Heart className={`w-6 h-6 ${lives >= 3 ? 'text-red-500 fill-current' : 'text-slate-600'}`} />
+        </div>
+        
+        <div className="flex flex-col items-center">
+           <span className="text-xs text-slate-400 uppercase tracking-widest">Score</span>
+           <span className="font-mono text-xl text-cyan-400 font-bold">{score}</span>
+        </div>
+
+        <div className="flex items-center space-x-1">
+          <Zap className={`w-5 h-5 ${streak > 1 ? 'text-yellow-400 fill-current' : 'text-slate-600'}`} />
+          <span className="font-bold text-yellow-400">x{streak}</span>
+        </div>
+      </div>
+
+      {/* Timer Bar */}
+      <div className="max-w-2xl w-full h-2 bg-slate-800 rounded-full mb-6 overflow-hidden relative">
+        <div 
+          className={`h-full transition-all duration-1000 ease-linear ${
+            timeLeft < 5 ? 'bg-red-500' : 'bg-gradient-to-r from-cyan-500 to-purple-500'
+          }`}
+          style={{ width: `${(timeLeft / 20) * 100}%` }}
+        />
+      </div>
+
+      {/* Main Card */}
+      <div className="max-w-2xl w-full bg-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl border border-slate-700 relative overflow-hidden">
+        
+        {/* Category Tag */}
+        <span className="inline-block bg-slate-700 text-cyan-300 text-xs font-bold px-3 py-1 rounded-full mb-4">
+          {question.category}
+        </span>
+
+        {/* Main Equation Display */}
+        <div className="mb-6 flex flex-col items-center justify-center min-h-[120px] bg-slate-900 rounded-xl p-6 border border-slate-700">
+          <div className="text-2xl md:text-3xl text-center">
+             <MathJaxValues text={question.latex} />
+          </div>
+        </div>
+
+        <h3 className="text-lg md:text-xl text-slate-300 mb-6 text-center font-medium">
+          {question.question}
+        </h3>
+
+        {/* Options Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {question.options.map((opt) => {
+            let btnClass = "p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center min-h-[80px] relative ";
+            
+            // Interaction States
+            if (feedback) {
+              if (opt.isCorrect) {
+                btnClass += "bg-green-900/30 border-green-500 text-green-100 ";
+              } else if (selectedOption === opt.id && !opt.isCorrect) {
+                btnClass += "bg-red-900/30 border-red-500 text-red-100 opacity-50 ";
+              } else {
+                btnClass += "bg-slate-800 border-slate-700 opacity-30 ";
+              }
+            } else {
+              btnClass += "bg-slate-800 border-slate-700 hover:border-indigo-500 hover:bg-slate-750 cursor-pointer ";
+            }
+
+            return (
+              <button
+                key={opt.id}
+                onClick={() => handleAnswer(opt.id, opt.isCorrect)}
+                disabled={!!feedback}
+                className={btnClass}
+              >
+                {opt.latex ? (
+                   <div className="text-lg"><MathJaxValues text={opt.latex} /></div>
+                ) : (
+                   <span className="text-sm font-medium">{opt.text}</span>
+                )}
+                
+                {/* Status Icons */}
+                {feedback && opt.isCorrect && (
+                   <CheckCircle className="absolute top-2 right-2 w-5 h-5 text-green-500" />
+                )}
+                {feedback && !opt.isCorrect && selectedOption === opt.id && (
+                   <XCircle className="absolute top-2 right-2 w-5 h-5 text-red-500" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+        
+        {/* Feedback Overlay Message */}
+        {feedback && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <div className={`
+              backdrop-blur-md px-8 py-4 rounded-2xl shadow-2xl transform scale-110
+              ${feedback === 'correct' ? 'bg-green-500/20 border-green-500 text-green-400 border' : 'bg-red-500/20 border-red-500 text-red-400 border'}
+            `}>
+              <h2 className="text-4xl font-black uppercase tracking-tighter">
+                {feedback === 'correct' ? 'Correct!' : feedback === 'timeout' ? 'Time Up!' : 'Wrong!'}
+              </h2>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-6 text-slate-500 text-sm">
+        Question {currentQIndex + 1} of {QUESTIONS.length}
+      </div>
+    </div>
+  );
+}
