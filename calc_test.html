@@ -39,6 +39,14 @@
             -webkit-appearance: none; 
             margin: 0; 
         }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .animate-float {
+            animation: float 4s ease-in-out infinite;
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-200">
@@ -53,11 +61,10 @@
         
         // Use a safe fallback if lucideReact fails to load
         const LucideIcons = window.lucideReact || {};
-        const { Play, RotateCcw, CheckCircle, XCircle, Trophy, Timer, TrendingUp, Calculator, Brain, User, Keyboard, Volume2 } = LucideIcons;
+        const { Play, RotateCcw, CheckCircle, XCircle, Trophy, Timer, TrendingUp, Calculator, Brain, User, Keyboard, Volume2, Search, MapPin, Gem } = LucideIcons;
 
         // --- Sound FX Utility ---
         const playSound = (type) => {
-            // Check for AudioContext support
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (!AudioContext) return;
             
@@ -69,7 +76,6 @@
             gain.connect(ctx.destination);
             
             if (type === 'correct') {
-                // High pitch, ascending chime
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(500, ctx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.1);
@@ -78,7 +84,6 @@
                 osc.start();
                 osc.stop(ctx.currentTime + 0.3);
             } else if (type === 'incorrect') {
-                // Low pitch, descending buzz
                 osc.type = 'sawtooth';
                 osc.frequency.setValueAtTime(150, ctx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.3);
@@ -87,13 +92,24 @@
                 osc.start();
                 osc.stop(ctx.currentTime + 0.3);
             } else if (type === 'click') {
-                // Short click
                 osc.type = 'square';
                 osc.frequency.setValueAtTime(800, ctx.currentTime);
                 gain.gain.setValueAtTime(0.05, ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
                 osc.start();
                 osc.stop(ctx.currentTime + 0.05);
+            } else if (type === 'win') {
+                // Victory Fanfare
+                osc.type = 'triangle';
+                const now = ctx.currentTime;
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.setValueAtTime(500, now + 0.1);
+                osc.frequency.setValueAtTime(600, now + 0.2);
+                osc.frequency.setValueAtTime(800, now + 0.4);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
+                osc.start();
+                osc.stop(now + 1.0);
             }
         };
 
@@ -124,8 +140,16 @@
             </div>
         );
 
-        // --- Question Data Pool (20 Questions) ---
-        // All PFD questions converted to INPUT type
+        // --- Story Data ---
+        const STORY_CLUES = [
+            "We found a discarded ticket stub near the crime scene... She's heading to Europe!",
+            "A gelato vendor in Rome saw a woman in a red hat running towards the train station.",
+            "Interpol reports a high-speed boat chase in Venice. She dropped a red button on the dock.",
+            "Radar just picked up a private signal. She's hiding out in a chalet in the Swiss Alps!",
+            "We've surrounded the chalet. She's trapped on the roof!"
+        ];
+
+        // --- Question Data Pool ---
         const QUESTION_POOL = [
             {
                 id: 1,
@@ -493,12 +517,12 @@
             const [isAnswered, setIsAnswered] = useState(false);
             const [highScore, setHighScore] = useState(0);
             const [inputValue, setInputValue] = useState("");
+            const [correctAnswers, setCorrectAnswers] = useState(0); // Track correct count for the story
             const inputRef = useRef(null);
 
             // Timer Effect
             useEffect(() => {
                 let timer;
-                // Only count down if not an input question
                 const currentQuestion = questions[currentQuestionIndex];
                 const isInput = currentQuestion?.type === 'input';
 
@@ -512,7 +536,7 @@
                 return () => clearInterval(timer);
             }, [gameState, isAnswered, timeLeft, questions, currentQuestionIndex]);
 
-            // Focus input when switching to an input question
+            // Focus input
             useEffect(() => {
                 if (questions[currentQuestionIndex]?.type === 'input' && !isAnswered) {
                     setInputValue("");
@@ -521,7 +545,6 @@
             }, [currentQuestionIndex, questions, isAnswered]);
 
             const startGame = () => {
-                // Shuffle pool and select 5
                 const shuffled = [...QUESTION_POOL].sort(() => 0.5 - Math.random());
                 const selectedQuestions = shuffled.slice(0, 5);
                 setQuestions(selectedQuestions);
@@ -531,6 +554,7 @@
                 setCurrentQuestionIndex(0);
                 setScore(0);
                 setStreak(0);
+                setCorrectAnswers(0);
                 setTimeLeft(40);
                 setSelectedOption(null);
                 setIsAnswered(false);
@@ -547,7 +571,6 @@
                 let correct = false;
 
                 if (question.type === 'input') {
-                    // Normalize string comparison
                     correct = optionId.toString().trim().toLowerCase() === question.answer.toString().trim().toLowerCase();
                 } else {
                     correct = optionId === question.correctId;
@@ -555,13 +578,12 @@
                 
                 if (correct) {
                     playSound('correct');
-                    // Base score 100 + Time Bonus + Streak Bonus
-                    // For input questions (untimed), give a fixed bonus equivalent to fast thinking
                     const timeBonus = question.type === 'input' ? 100 : timeLeft * 5;
                     const streakBonus = streak * 50;
                     const points = 100 + timeBonus + streakBonus;
                     setScore(s => s + points);
                     setStreak(s => s + 1);
+                    setCorrectAnswers(c => c + 1);
                 } else {
                     playSound('incorrect');
                     setStreak(0);
@@ -595,45 +617,47 @@
 
             const endGame = () => {
                 if (score > highScore) setHighScore(score);
+                if (correctAnswers === 5) playSound('win');
                 setGameState('end');
             };
 
             // --- Screens ---
 
             const StartScreen = () => (
-                <div className="flex flex-col items-center justify-center h-full text-center space-y-8 animate-in fade-in zoom-in duration-500">
-                <div className="bg-cyan-900/30 p-8 rounded-full ring-4 ring-cyan-500/50 shadow-[0_0_50px_rgba(8,145,178,0.4)]">
-                     {Calculator ? <Calculator size={64} className="text-cyan-400" /> : <div className="text-4xl">calc</div>}
+                <div className="flex flex-col items-center justify-center h-full text-center space-y-6 animate-in fade-in zoom-in duration-500">
+                <div className="bg-red-900/30 p-8 rounded-full ring-4 ring-red-500/50 shadow-[0_0_50px_rgba(220,38,38,0.4)] animate-float">
+                     {Gem && <Gem size={64} className="text-red-400" />}
                 </div>
                 <div>
-                    <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600">
-                        CALCULUS RUN
+                    <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-amber-600">
+                        MISSION: DIAMOND
                     </h1>
-                    <div className="flex items-center justify-center gap-2 mt-2 text-cyan-400 font-mono">
-                        {User && <User size={18} />}
+                    <div className="flex items-center justify-center gap-2 mt-4 text-cyan-400 font-mono text-lg">
+                        {User && <User size={20} />}
                         <span>AGENT: BREEZY</span>
                     </div>
                 </div>
-                <p className="text-slate-400 text-lg max-w-md">
-                    Welcome back, Breezy. Your mission: 5 Random Questions. 
-                    <br/><br/>
-                    <span className="text-sm bg-slate-800 px-2 py-1 rounded text-cyan-300">NOTE:</span> Calculation questions are <strong>UNTIMED</strong> so you can solve them long form.
-                </p>
+                <div className="max-w-md bg-slate-900/80 p-6 rounded-xl border border-slate-700 text-left">
+                    <p className="text-slate-300 mb-4">
+                        <strong className="text-red-400">URGENT BRIEFING:</strong> The "Star of the Desert" diamond has been stolen from the Prince of Saudi Arabia.
+                    </p>
+                    <p className="text-slate-400 text-sm">
+                        The suspect is a woman in a red trench coat and red hat. 
+                        We need you to solve 5 Calculus problems to decode her location.
+                    </p>
+                    <div className="mt-4 p-3 bg-red-950/50 border border-red-900/50 rounded text-xs text-red-300">
+                        WARNING: You must answer <strong>ALL 5 questions correctly</strong> to catch her. One mistake, and she vanishes.
+                    </div>
+                </div>
                 
                 <button 
                     onClick={startGame}
-                    className="group relative px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition-all hover:scale-105 hover:shadow-[0_0_30px_rgba(8,145,178,0.6)]"
+                    className="group relative px-8 py-4 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-all hover:scale-105 hover:shadow-[0_0_30px_rgba(220,38,38,0.6)]"
                 >
                     <span className="flex items-center gap-2 text-xl">
-                    {Play && <Play fill="currentColor" />} START MISSION
+                    {Play && <Play fill="currentColor" />} ACCEPT MISSION
                     </span>
                 </button>
-
-                {highScore > 0 && (
-                    <div className="flex items-center gap-2 text-amber-400 font-mono">
-                    {Trophy && <Trophy size={16} />} High Score: {highScore}
-                    </div>
-                )}
                 </div>
             );
 
@@ -641,8 +665,6 @@
                 if (!questions || questions.length === 0) return <div>Loading mission data...</div>;
 
                 const question = questions[currentQuestionIndex];
-                // For input types, correct checking is done inside the function, 
-                // but we need to know if the result was correct for UI color
                 const isInput = question.type === 'input';
                 
                 let isCorrect = false;
@@ -655,29 +677,41 @@
                 }
                 
                 return (
-                <div className="w-full max-w-3xl mx-auto flex flex-col h-full">
+                <div className="w-full max-w-4xl mx-auto flex flex-col h-full">
                     {/* HUD */}
-                    <div className="flex justify-between items-center mb-6 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
-                    <div className="flex items-center gap-2 text-amber-400 font-mono text-xl">
-                        {Trophy && <Trophy size={20} />}
-                        <span>{score}</span>
-                    </div>
-                    
-                    <div className={`flex items-center gap-2 font-mono text-xl ${!isInput && timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-cyan-400'}`}>
-                        {Timer && <Timer size={20} />}
-                        <span>{isInput ? "PAUSED" : `${timeLeft}s`}</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 text-purple-400 font-mono text-xl">
-                        {TrendingUp && <TrendingUp size={20} />}
-                        <span>x{streak + 1}</span>
-                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div className="flex justify-between items-center bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                            <div className="flex items-center gap-2 text-amber-400 font-mono text-xl">
+                                {Trophy && <Trophy size={20} />}
+                                <span>{score}</span>
+                            </div>
+                            <div className={`flex items-center gap-2 font-mono text-xl ${!isInput && timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-cyan-400'}`}>
+                                {Timer && <Timer size={20} />}
+                                <span>{isInput ? "PAUSED" : `${timeLeft}s`}</span>
+                            </div>
+                        </div>
+
+                        {/* CASE FILE (Story Tracker) */}
+                        <div className="md:col-span-2 bg-slate-900 p-4 rounded-xl border border-slate-700 flex items-center gap-4 overflow-hidden relative">
+                            <div className="absolute top-0 right-0 p-2 opacity-10">
+                                {Search && <Search size={40} />}
+                            </div>
+                            <div className="flex items-center gap-2 text-red-400 font-bold shrink-0">
+                                {MapPin && <MapPin size={18} />} CASE FILE:
+                            </div>
+                            <div className="text-sm text-slate-300 truncate">
+                                {correctAnswers === 0 
+                                    ? "No clues yet. Solve the problem to find a lead..." 
+                                    : STORY_CLUES[correctAnswers - 1]
+                                }
+                            </div>
+                        </div>
                     </div>
 
                     {/* Progress Bar */}
                     <div className="w-full bg-slate-800 h-2 rounded-full mb-6 overflow-hidden">
                     <div 
-                        className="bg-gradient-to-r from-cyan-500 to-blue-500 h-full transition-all duration-500"
+                        className="bg-gradient-to-r from-red-500 to-amber-500 h-full transition-all duration-500"
                         style={{ width: `${((currentQuestionIndex) / questions.length) * 100}%` }}
                     />
                     </div>
@@ -685,12 +719,9 @@
                     {/* Question Card */}
                     <div className="flex-grow flex flex-col items-center">
                     <div className="w-full bg-slate-900 border border-slate-700 p-6 rounded-2xl shadow-xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-4 opacity-10">
-                        {Brain && <Brain size={120} />}
-                        </div>
                         
                         <span className="inline-block px-3 py-1 rounded-full bg-slate-800 text-slate-400 text-xs font-bold tracking-wider mb-4 border border-slate-700">
-                        QUESTION {currentQuestionIndex + 1} / {questions.length} • {question.category}
+                        CLUE #{currentQuestionIndex + 1} • {question.category}
                         </span>
                         
                         <div className="text-xl md:text-2xl text-white font-medium mb-8 z-10 relative">
@@ -712,21 +743,21 @@
                                             onChange={(e) => setInputValue(e.target.value)}
                                             disabled={isAnswered}
                                             placeholder="Enter value..."
-                                            className="w-full pl-10 pr-4 py-4 bg-slate-800 border-2 border-slate-600 rounded-xl focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 text-xl text-white placeholder:text-slate-500 outline-none transition-all"
+                                            className="w-full pl-10 pr-4 py-4 bg-slate-800 border-2 border-slate-600 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-500/20 text-xl text-white placeholder:text-slate-500 outline-none transition-all"
                                         />
                                     </div>
                                     <button 
                                         type="submit"
                                         disabled={isAnswered || !inputValue}
-                                        className="w-full py-4 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-lg shadow-cyan-900/20 flex items-center justify-center gap-2"
+                                        className="w-full py-4 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-lg shadow-red-900/20 flex items-center justify-center gap-2"
                                     >
-                                        SUBMIT DATA
+                                        SUBMIT & SCAN FOR CLUES
                                     </button>
                                 </form>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {question.options.map((opt) => {
-                                    let statusClass = "bg-slate-800 border-slate-600 hover:bg-slate-750 hover:border-cyan-500";
+                                    let statusClass = "bg-slate-800 border-slate-600 hover:bg-slate-750 hover:border-red-500";
                                     
                                     if (isAnswered) {
                                     if (opt.id === question.correctId) {
@@ -766,19 +797,25 @@
                             <div className="flex items-center gap-2 mb-2">
                             {isCorrect ? (CheckCircle && <CheckCircle className="text-green-500" />) : (XCircle && <XCircle className="text-red-500" />)}
                             <h3 className={`font-bold ${isCorrect ? 'text-green-400' : 'text-red-400'}`}>
-                                {isCorrect ? 'Correct!' : `Incorrect. The answer was ${isInput ? question.answer : question.correctId}.`}
+                                {isCorrect ? 'CLUE FOUND!' : `CLUE LOST. Answer was ${isInput ? question.answer : question.correctId}.`}
                             </h3>
                             </div>
-                            <div className="text-slate-300">
+                            <div className="text-slate-300 mb-2">
                             {question.explanation}
                             </div>
+                            {isCorrect && (
+                                <div className="mt-2 pt-2 border-t border-green-800/50 text-green-300 font-mono text-sm flex items-center gap-2">
+                                    {MapPin && <MapPin size={14} />} 
+                                    UPDATE: {STORY_CLUES[correctAnswers - 1]}
+                                </div>
+                            )}
                         </div>
                         
                         <button 
                             onClick={nextQuestion}
-                            className="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition-colors shadow-lg shadow-cyan-900/20"
+                            className="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-colors shadow-lg shadow-red-900/20"
                         >
-                            {currentQuestionIndex === questions.length - 1 ? "Finish Game" : "Next Question"}
+                            {currentQuestionIndex === questions.length - 1 ? "FINISH MISSION" : "NEXT CLUE"}
                         </button>
                         </div>
                     )}
@@ -787,45 +824,59 @@
                 );
             };
 
-            const EndScreen = () => (
+            const EndScreen = () => {
+                const won = correctAnswers === 5;
+                
+                return (
                 <div className="flex flex-col items-center justify-center h-full text-center space-y-6 animate-in zoom-in duration-500">
                 <div className="relative">
-                    {Trophy && <Trophy size={80} className="text-amber-400 mb-4 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]" />}
-                    <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full animate-bounce">
-                    DONE!
-                    </div>
+                    {won ? (
+                        <div className="bg-green-900/30 p-8 rounded-full ring-4 ring-green-500/50 shadow-[0_0_50px_rgba(34,197,94,0.4)]">
+                             {Gem && <Gem size={80} className="text-green-400" />}
+                        </div>
+                    ) : (
+                        <div className="bg-red-900/30 p-8 rounded-full ring-4 ring-red-500/50 shadow-[0_0_50px_rgba(220,38,38,0.4)]">
+                             {User && <User size={80} className="text-red-400 opacity-50" />}
+                        </div>
+                    )}
                 </div>
                 
-                <h2 className="text-4xl font-bold text-white">Mission Complete, Breezy!</h2>
+                <h2 className="text-4xl font-bold text-white">
+                    {won ? "MISSION ACCOMPLISHED" : "MISSION FAILED"}
+                </h2>
                 
-                <div className="grid grid-cols-2 gap-4 w-full max-w-sm mt-8">
-                    <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                    <div className="text-slate-400 text-sm uppercase tracking-wider mb-1">Final Score</div>
-                    <div className="text-3xl font-mono text-cyan-400 font-bold">{score}</div>
-                    </div>
-                    <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                    <div className="text-slate-400 text-sm uppercase tracking-wider mb-1">Top Streak</div>
-                    <div className="text-3xl font-mono text-purple-400 font-bold">{streak}</div>
+                <div className="max-w-md bg-slate-900 p-6 rounded-xl border border-slate-700">
+                    <p className="text-lg mb-4">
+                        {won 
+                            ? "Excellent work, Agent Breezy! You cornered the lady in red on the rooftop. The Prince's diamond has been recovered." 
+                            : "The trail went cold, Agent Breezy. The Crimson Phantom escaped with the diamond. You missed a few clues along the way."}
+                    </p>
+                    <div className="grid grid-cols-2 gap-4 mt-6">
+                        <div className="bg-slate-800 p-3 rounded-lg">
+                            <div className="text-xs text-slate-400 uppercase">Score</div>
+                            <div className="text-2xl font-mono text-cyan-400">{score}</div>
+                        </div>
+                        <div className="bg-slate-800 p-3 rounded-lg">
+                            <div className="text-xs text-slate-400 uppercase">Clues Found</div>
+                            <div className={`text-2xl font-mono ${won ? 'text-green-400' : 'text-red-400'}`}>
+                                {correctAnswers}/5
+                            </div>
+                        </div>
                     </div>
                 </div>
-
-                <p className="text-slate-400 max-w-md mt-4">
-                    {score > 2000 ? "Amazing work, Breezy! You're ready for the exam." : 
-                    score > 1000 ? "Good job, Breezy! Keep practicing those decompositions." :
-                    "Keep reviewing your divergence tests, Breezy!"}
-                </p>
 
                 <button 
                     onClick={startGame}
                     className="mt-8 px-8 py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-all flex items-center gap-2"
                 >
-                    {RotateCcw && <RotateCcw size={20} />} Play Again
+                    {RotateCcw && <RotateCcw size={20} />} RESTART MISSION
                 </button>
                 </div>
-            );
+                );
+            };
 
             return (
-                <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-cyan-500/30">
+                <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-red-500/30">
                 <div className="max-w-4xl mx-auto p-4 h-screen flex flex-col">
                     {gameState === 'start' && <StartScreen />}
                     {gameState === 'playing' && <GameScreen />}
