@@ -33,6 +33,12 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #06b6d4; 
         }
+        /* Remove number input arrows */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-200">
@@ -43,11 +49,11 @@
     <!-- The React Code -->
     <script type="text/babel">
         // --- Get components from global variables (since we aren't using 'import') ---
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
         
         // Use a safe fallback if lucideReact fails to load
         const LucideIcons = window.lucideReact || {};
-        const { Play, RotateCcw, CheckCircle, XCircle, Trophy, Timer, TrendingUp, Calculator, Brain, User } = LucideIcons;
+        const { Play, RotateCcw, CheckCircle, XCircle, Trophy, Timer, TrendingUp, Calculator, Brain, User, Keyboard } = LucideIcons;
 
         // --- Utility Component for Fractions ---
         const Fraction = ({ num, den }) => (
@@ -77,6 +83,7 @@
         );
 
         // --- Question Data Pool (20 Questions) ---
+        // Added 'type: input' and 'answer' field for solving questions
         const QUESTION_POOL = [
             {
                 id: 1,
@@ -169,22 +176,17 @@
             {
                 id: 5,
                 category: "PFD Solving",
+                type: "input",
+                answer: "2",
                 prompt: (
                 <div className="flex flex-col items-center">
-                    <p className="mb-4">Solve for constant <strong>A</strong>:</p>
+                    <p className="mb-4">Solve for constant <strong>A</strong> (Untimed):</p>
                     <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700 mb-4">
                     <Fraction num="5x - 4" den="(x - 2)(x + 1)" /> = <Fraction num="A" den="x - 2" /> + <Fraction num="B" den="x + 1" />
                     </div>
                     <p className="text-sm text-slate-400">(Hint: Use the cover-up method with x = 2)</p>
                 </div>
                 ),
-                options: [
-                { id: 'A', label: "A = 2" },
-                { id: 'B', label: "A = 3" },
-                { id: 'C', label: "A = 5" },
-                { id: 'D', label: "A = -2" },
-                ],
-                correctId: 'A',
                 explanation: (
                 <div className="flex items-center flex-wrap justify-center">
                     Let x = 2. Cover (x-2). term = 6/3 = 2. Great calculation, Breezy!
@@ -276,21 +278,16 @@
             {
                 id: 10,
                 category: "PFD Solving",
+                type: "input",
+                answer: "-1",
                 prompt: (
                 <div className="flex flex-col items-center">
-                    <p className="mb-4">Find the value of <strong>B</strong>:</p>
+                    <p className="mb-4">Find the value of <strong>B</strong> (Untimed):</p>
                     <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
                     <Fraction num="2" den="(x-1)(x+1)" /> = <Fraction num="A" den="x-1" /> + <Fraction num="B" den="x+1" />
                     </div>
                 </div>
                 ),
-                options: [
-                { id: 'A', label: "B = 1" },
-                { id: 'B', label: "B = -1" },
-                { id: 'C', label: "B = -2" },
-                { id: 'D', label: "B = 2" },
-                ],
-                correctId: 'B',
                 explanation: "Cover up (x+1), plug in x = -1. You get 2/(-2) = -1. Perfect math, Breezy."
             },
             {
@@ -376,21 +373,16 @@
             {
                 id: 15,
                 category: "PFD Solving",
+                type: "input",
+                answer: "1",
                 prompt: (
                 <div className="flex flex-col items-center">
-                    <p className="mb-4">Solve for A:</p>
+                    <p className="mb-4">Solve for A (Untimed):</p>
                     <div className="text-2xl font-bold bg-slate-800 p-4 rounded-lg border border-slate-700">
                     <Fraction num="7" den="(x-3)(x+4)" /> = <Fraction num="A" den="x-3" /> + <Fraction num="B" den="x+4" />
                     </div>
                 </div>
                 ),
-                options: [
-                { id: 'A', label: "A = 7" },
-                { id: 'B', label: "A = -1" },
-                { id: 'C', label: "A = 1" },
-                { id: 'D', label: "A = 1/7" },
-                ],
-                correctId: 'C',
                 explanation: "Let x = 3. Cover (x-3). You get 7/(3+4) = 7/7 = 1. Simple and clean, Breezy."
             },
             {
@@ -497,23 +489,37 @@
             const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
             const [score, setScore] = useState(0);
             const [streak, setStreak] = useState(0);
-            const [timeLeft, setTimeLeft] = useState(40); // UPDATED to 40
+            const [timeLeft, setTimeLeft] = useState(40);
             const [selectedOption, setSelectedOption] = useState(null);
             const [isAnswered, setIsAnswered] = useState(false);
             const [highScore, setHighScore] = useState(0);
+            const [inputValue, setInputValue] = useState("");
+            const inputRef = useRef(null);
 
             // Timer Effect
             useEffect(() => {
                 let timer;
-                if (gameState === 'playing' && !isAnswered && timeLeft > 0) {
-                timer = setInterval(() => {
-                    setTimeLeft((prev) => prev - 1);
-                }, 1000);
-                } else if (timeLeft === 0 && !isAnswered) {
-                handleAnswerTimeOut();
+                // Only count down if not an input question
+                const currentQuestion = questions[currentQuestionIndex];
+                const isInput = currentQuestion?.type === 'input';
+
+                if (gameState === 'playing' && !isAnswered && timeLeft > 0 && !isInput) {
+                    timer = setInterval(() => {
+                        setTimeLeft((prev) => prev - 1);
+                    }, 1000);
+                } else if (timeLeft === 0 && !isAnswered && !isInput) {
+                    handleAnswerTimeOut();
                 }
                 return () => clearInterval(timer);
-            }, [gameState, isAnswered, timeLeft]);
+            }, [gameState, isAnswered, timeLeft, questions, currentQuestionIndex]);
+
+            // Focus input when switching to an input question
+            useEffect(() => {
+                if (questions[currentQuestionIndex]?.type === 'input' && !isAnswered) {
+                    setInputValue("");
+                    setTimeout(() => inputRef.current?.focus(), 100);
+                }
+            }, [currentQuestionIndex, questions, isAnswered]);
 
             const startGame = () => {
                 // Shuffle pool and select 5
@@ -525,9 +531,10 @@
                 setCurrentQuestionIndex(0);
                 setScore(0);
                 setStreak(0);
-                setTimeLeft(40); // Reset to 40
+                setTimeLeft(40);
                 setSelectedOption(null);
                 setIsAnswered(false);
+                setInputValue("");
             };
 
             const handleAnswer = (optionId) => {
@@ -536,17 +543,26 @@
                 setIsAnswered(true);
                 setSelectedOption(optionId);
                 
-                const correct = optionId === questions[currentQuestionIndex].correctId;
+                const question = questions[currentQuestionIndex];
+                let correct = false;
+
+                if (question.type === 'input') {
+                    // Normalize string comparison
+                    correct = optionId.toString().trim().toLowerCase() === question.answer.toString().trim().toLowerCase();
+                } else {
+                    correct = optionId === question.correctId;
+                }
                 
                 if (correct) {
-                // Base score 100 + Time Bonus + Streak Bonus
-                const timeBonus = timeLeft * 5;
-                const streakBonus = streak * 50;
-                const points = 100 + timeBonus + streakBonus;
-                setScore(s => s + points);
-                setStreak(s => s + 1);
+                    // Base score 100 + Time Bonus + Streak Bonus
+                    // For input questions (untimed), give a fixed bonus equivalent to fast thinking
+                    const timeBonus = question.type === 'input' ? 100 : timeLeft * 5;
+                    const streakBonus = streak * 50;
+                    const points = 100 + timeBonus + streakBonus;
+                    setScore(s => s + points);
+                    setStreak(s => s + 1);
                 } else {
-                setStreak(0);
+                    setStreak(0);
                 }
             };
 
@@ -556,14 +572,20 @@
                 setStreak(0);
             };
 
+            const handleInputSubmit = (e) => {
+                e.preventDefault();
+                handleAnswer(inputValue);
+            };
+
             const nextQuestion = () => {
                 if (currentQuestionIndex < questions.length - 1) {
-                setCurrentQuestionIndex(prev => prev + 1);
-                setTimeLeft(40); // Reset to 40
-                setIsAnswered(false);
-                setSelectedOption(null);
+                    setCurrentQuestionIndex(prev => prev + 1);
+                    setTimeLeft(40);
+                    setIsAnswered(false);
+                    setSelectedOption(null);
+                    setInputValue("");
                 } else {
-                endGame();
+                    endGame();
                 }
             };
 
@@ -589,8 +611,9 @@
                     </div>
                 </div>
                 <p className="text-slate-400 text-lg max-w-md">
-                    Welcome back, Breezy. Your mission: 5 Random Questions. 40 Seconds each.
-                    Good luck.
+                    Welcome back, Breezy. Your mission: 5 Random Questions. 
+                    <br/><br/>
+                    <span className="text-sm bg-slate-800 px-2 py-1 rounded text-cyan-300">NOTE:</span> Calculation questions are <strong>UNTIMED</strong> so you can solve them long form.
                 </p>
                 
                 <button 
@@ -611,11 +634,21 @@
             );
 
             const GameScreen = () => {
-                // Safety check if questions haven't loaded yet
                 if (!questions || questions.length === 0) return <div>Loading mission data...</div>;
 
                 const question = questions[currentQuestionIndex];
-                const isCorrect = selectedOption === question.correctId;
+                // For input types, correct checking is done inside the function, 
+                // but we need to know if the result was correct for UI color
+                const isInput = question.type === 'input';
+                
+                let isCorrect = false;
+                if (isAnswered) {
+                    if (isInput) {
+                        isCorrect = selectedOption.toString().trim().toLowerCase() === question.answer.toString().trim().toLowerCase();
+                    } else {
+                        isCorrect = selectedOption === question.correctId;
+                    }
+                }
                 
                 return (
                 <div className="w-full max-w-3xl mx-auto flex flex-col h-full">
@@ -626,9 +659,9 @@
                         <span>{score}</span>
                     </div>
                     
-                    <div className={`flex items-center gap-2 font-mono text-xl ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-cyan-400'}`}>
+                    <div className={`flex items-center gap-2 font-mono text-xl ${!isInput && timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-cyan-400'}`}>
                         {Timer && <Timer size={20} />}
-                        <span>{timeLeft}s</span>
+                        <span>{isInput ? "PAUSED" : `${timeLeft}s`}</span>
                     </div>
                     
                     <div className="flex items-center gap-2 text-purple-400 font-mono text-xl">
@@ -660,37 +693,65 @@
                         {question.prompt}
                         </div>
 
-                        {/* Options Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full z-10 relative">
-                        {question.options.map((opt) => {
-                            let statusClass = "bg-slate-800 border-slate-600 hover:bg-slate-750 hover:border-cyan-500";
-                            
-                            if (isAnswered) {
-                            if (opt.id === question.correctId) {
-                                statusClass = "bg-green-900/50 border-green-500 ring-1 ring-green-500";
-                            } else if (opt.id === selectedOption) {
-                                statusClass = "bg-red-900/50 border-red-500 opacity-50";
-                            } else {
-                                statusClass = "bg-slate-800 border-slate-700 opacity-50";
-                            }
-                            }
+                        {/* Input Area or Options Grid */}
+                        <div className="w-full z-10 relative">
+                            {isInput ? (
+                                <form onSubmit={handleInputSubmit} className="flex flex-col gap-4">
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                            {Keyboard && <Keyboard size={20} />}
+                                        </div>
+                                        <input 
+                                            ref={inputRef}
+                                            type="text" 
+                                            value={inputValue}
+                                            onChange={(e) => setInputValue(e.target.value)}
+                                            disabled={isAnswered}
+                                            placeholder="Enter value..."
+                                            className="w-full pl-10 pr-4 py-4 bg-slate-800 border-2 border-slate-600 rounded-xl focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 text-xl text-white placeholder:text-slate-500 outline-none transition-all"
+                                        />
+                                    </div>
+                                    <button 
+                                        type="submit"
+                                        disabled={isAnswered || !inputValue}
+                                        className="w-full py-4 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-lg shadow-cyan-900/20 flex items-center justify-center gap-2"
+                                    >
+                                        SUBMIT DATA
+                                    </button>
+                                </form>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {question.options.map((opt) => {
+                                    let statusClass = "bg-slate-800 border-slate-600 hover:bg-slate-750 hover:border-cyan-500";
+                                    
+                                    if (isAnswered) {
+                                    if (opt.id === question.correctId) {
+                                        statusClass = "bg-green-900/50 border-green-500 ring-1 ring-green-500";
+                                    } else if (opt.id === selectedOption) {
+                                        statusClass = "bg-red-900/50 border-red-500 opacity-50";
+                                    } else {
+                                        statusClass = "bg-slate-800 border-slate-700 opacity-50";
+                                    }
+                                    }
 
-                            return (
-                            <button
-                                key={opt.id}
-                                onClick={() => handleAnswer(opt.id)}
-                                disabled={isAnswered}
-                                className={`p-4 rounded-xl border-2 transition-all duration-200 text-left flex items-center gap-3 ${statusClass}`}
-                            >
-                                <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center font-bold text-slate-400 text-sm shrink-0">
-                                {opt.id}
+                                    return (
+                                    <button
+                                        key={opt.id}
+                                        onClick={() => handleAnswer(opt.id)}
+                                        disabled={isAnswered}
+                                        className={`p-4 rounded-xl border-2 transition-all duration-200 text-left flex items-center gap-3 ${statusClass}`}
+                                    >
+                                        <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center font-bold text-slate-400 text-sm shrink-0">
+                                        {opt.id}
+                                        </div>
+                                        <div className="text-lg font-medium text-slate-200">
+                                        {opt.label}
+                                        </div>
+                                    </button>
+                                    );
+                                })}
                                 </div>
-                                <div className="text-lg font-medium text-slate-200">
-                                {opt.label}
-                                </div>
-                            </button>
-                            );
-                        })}
+                            )}
                         </div>
                     </div>
 
@@ -701,7 +762,7 @@
                             <div className="flex items-center gap-2 mb-2">
                             {isCorrect ? (CheckCircle && <CheckCircle className="text-green-500" />) : (XCircle && <XCircle className="text-red-500" />)}
                             <h3 className={`font-bold ${isCorrect ? 'text-green-400' : 'text-red-400'}`}>
-                                {isCorrect ? 'Correct!' : 'Incorrect'}
+                                {isCorrect ? 'Correct!' : `Incorrect. The answer was ${isInput ? question.answer : question.correctId}.`}
                             </h3>
                             </div>
                             <div className="text-slate-300">
